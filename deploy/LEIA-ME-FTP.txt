@@ -1,0 +1,46 @@
+CUIDADO EM FAMÍLIA — PACOTE DO SERVIDOR
+Endereço pretendido: https://noscuidamos.gabale.com.br
+
+Este pacote ainda não foi enviado para a Locaweb.
+
+1. Antes de enviar
+Confirme no plano de hospedagem o suporte a Node.js 24, processo permanente,
+armazenamento persistente, saída SMTP TLS e associação do subdomínio à aplicação.
+FTP transfere os arquivos; não inicia o servidor do aplicativo.
+Se o plano aceitar apenas arquivos estáticos/PHP, este pacote não executará
+login, e-mail, compartilhamento ou notificações. Será necessária hospedagem
+compatível para o servidor; não substituir o site Gabale por um HTML isolado.
+
+2. Local de instalação
+Use uma pasta exclusiva para esta aplicação, sem sobrescrever o site Gabale.
+Não colocar o projeto inteiro em uma pasta pública que sirva os arquivos brutos.
+Configure o subdomínio para o processo Node, com pasta pública separada/adequada
+à plataforma. Comando de início: node server/auth.mjs. Porta interna padrão: 3000.
+O domínio deve ter certificado HTTPS válido para noscuidamos.gabale.com.br.
+
+3. Configuração privada
+O arquivo .env.example é apenas modelo, sem senha. Copie para .env somente no
+servidor em local protegido, não acessível por HTTP, e configure as credenciais.
+SMTP_USER e remetente: noscuidamos@gabale.com.br.
+Não envie a senha no chat. Não publique .env em diretório de arquivos estáticos.
+Os endereços públicos no modelo só devem ser ativados na instalação externa.
+
+4. Dados existentes
+O pacote NÃO contém senhas, banco local, contas de teste, pacientes ou anexos.
+Uma instalação nova começa com banco vazio. Migração de contas/dados locais
+deve ser planejada separadamente; não há transferência automática pelo FTP.
+O servidor precisa de uma pasta data gravável e persistente para SQLite.
+
+5. Conteúdo
+server/      — autenticação, e-mail, convites e notificações
+prototypes/  — interface web usada pelo servidor
+node_modules/nodemailer/ — biblioteca de e-mail instalada e licença
+package.json/package-lock.json — dependências e início do servidor
+.env.example — configuração de produção sem segredos
+deploy/      — alternativa Docker/Compose e proxy HTTPS
+manifesto.json — lista de arquivos com SHA-256
+
+6. Após instalar
+Iniciar processo permanente; validar HTTPS, login/cadastro, persistência após
+reinício, recuperação de senha e convites a partir de outro aparelho.
+Não há aplicativo Android publicado na Play Store nesta entrega.

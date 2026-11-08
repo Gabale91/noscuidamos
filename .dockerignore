@@ -1,0 +1,9 @@
+**
+!server/
+!server/**
+!prototypes/
+!prototypes/*.html
+!deploy/
+!deploy/Dockerfile
+!deploy/package.json
+!deploy/package-lock.json

@@ -1,0 +1,23 @@
+name: Validar aplicativo e imagem
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Validar sintaxe
+        run: |
+          node --check server/auth.mjs
+          node --check server/auth-ui.js
+          node --check server/notifications-ui.js
+      - name: Executar testes sem envio externo
+        run: node --test tests/*.test.mjs tests/*.test.cjs
+      - name: Verificar imagem de publicação
+        run: docker build --tag cuidado-em-familia:verificado --file deploy/Dockerfile .

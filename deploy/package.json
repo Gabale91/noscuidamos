@@ -1,0 +1,9 @@
+{
+  "name": "cuidado-em-familia-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server/auth.mjs" },
+  "engines": { "node": ">=24" },
+  "dependencies": { "nodemailer": "10.3.1" }
+}

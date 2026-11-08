@@ -1,0 +1,21 @@
+// Installs the official, dependency-free Nodemailer package when npm is unavailable.
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+const root=resolve('.'),target=resolve('node_modules/nodemailer');
+if(!target.startsWith(root+sep))throw new Error('Destino inválido.');
+const metadata=await fetch('https://registry.npmjs.org/nodemailer/latest',{signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('Não foi possível consultar o pacote oficial.');return r.json();});
+if(Object.keys(metadata.dependencies||{}).length)throw Error('Este instalador requer pacote sem dependências; use npm para esta versão.');
+const bytes=Buffer.from(await fetch(metadata.dist.tarball,{signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('Falha no download.');return r.arrayBuffer();}));
+const actual='sha512-'+createHash('sha512').update(bytes).digest('base64');
+if(actual!==metadata.dist.integrity)throw Error('A verificação de integridade falhou.');
+mkdirSync(resolve('data'),{recursive:true});
+const archive=resolve('data/nodemailer-package.tgz');writeFileSync(archive,bytes);
+const entries=execFileSync('tar',['-tzf',archive],{encoding:'utf8'}).trim().split(/\r?\n/);
+if(entries.some(name=>!name.startsWith('package/')||name.split(/[\\/]/).includes('..')||name.includes(':')))throw Error('Conteúdo do pacote inválido.');
+if(existsSync(resolve(target,'package.json'))&&JSON.parse(readFileSync(resolve(target,'package.json'),'utf8')).version!==metadata.version)throw Error('Há uma versão instalada diferente. Use npm para atualizar.');
+mkdirSync(target,{recursive:true});execFileSync('tar',['-xzf',archive,'-C',target,'--strip-components','1']);
+const pkg=JSON.parse(readFileSync('package.json','utf8'));pkg.dependencies.nodemailer=metadata.version;writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+writeFileSync('data/mail-package-integrity.json',JSON.stringify({name:'nodemailer',version:metadata.version,integrity:actual,source:metadata.dist.tarball},null,2));
+console.log('Nodemailer '+metadata.version+' instalado; integridade SHA-512 conferida.');

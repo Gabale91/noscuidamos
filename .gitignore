@@ -1,0 +1,23 @@
+node_modules/
+.expo/
+dist/
+.env
+.env.*
+!.env.example
+*.keystore
+*.p12
+*.mobileprovision
+coverage/
+data/
+deploy/runtime.env
+release/
+*.dpapi
+*.sqlite
+*.sqlite-*
+*.tgz
+.aws/
+.ssh/
+# Ferramentas operacionais locais com destinos/credenciais próprios do computador.
+scripts/configurar-ftp.ps1
+scripts/ftp-probe.ps1
+scripts/check-ftp.mjs

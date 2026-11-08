@@ -1,0 +1,38 @@
+# Deployment requires a paid instance and persistent disk; review in Render before creating.
+services:
+  - type: web
+    name: nos-cuidamos
+    runtime: docker
+    plan: starter
+    region: virginia
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    healthCheckPath: /healthz
+    domains:
+      - noscuidamos.gabale.com.br
+    disk:
+      name: cuidado-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: MAIL_PROVIDER
+        value: smtp
+      - key: MAIL_FROM
+        value: Cuidado em Família <noscuidamos@gabale.com.br>
+      - key: SMTP_HOST
+        value: email-ssl.com.br
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_USER
+        value: noscuidamos@gabale.com.br
+      - key: SMTP_PASSWORD_B64
+        sync: false
+      - key: PUSH_ENABLED
+        value: "false"
