@@ -1,5 +1,9 @@
 # Cuidado em Família
 
+## Hospedagem atual: Locaweb PHP 8.3 + MySQL
+
+A adaptação para o plano já contratado está em `php/`. Gere o pacote com `node scripts/package-php.mjs` e siga [a instalação e os limites](docs/locaweb-php.md). Não exige contratar Node, Render ou outra hospedagem. Configuração MySQL, diretório privado e HTTPS precisam ser homologados no destino; a presença do código não significa que o aplicativo já foi publicado.
+
 Projeto local organizado em 05/11/2026 a partir da conversa “Criar regras do aplicativo médico”.
 
 ## Entrega e estado real
@@ -12,7 +16,7 @@ Projeto local organizado em 05/11/2026 a partir da conversa “Criar regras do a
 - `src/domain.mjs`: regras isoladas para acompanhante, revisão de documentos e anexação de resultados; ainda sem integração à interface nativa ou a servidor.
 - `tests/`: testes automatizados das regras centrais.
 
-Foi acrescentado um servidor local de autenticação, cadastro e gestão da conta. Para testar o novo fluxo, abra `http://localhost:3000` enquanto `node server/auth.mjs` estiver em execução; consulte [Acesso e conta](docs/acesso-e-conta.md). O HTML direto permanece demonstração legada sem login. Não há API clínica completa, OCR de produção ou publicação nas lojas. A leitura compartilhada de metadados exige convite aceito; push externo ainda depende de configuração e integração móvel. Google e envio de e-mail dependem de configuração externa. Não há repositório remoto conectado ou envio verificado para GitHub.
+Foi acrescentado um servidor local de autenticação, cadastro e gestão da conta. Para testar o novo fluxo, abra `http://localhost:3000` enquanto `node server/auth.mjs` estiver em execução; consulte [Acesso e conta](docs/acesso-e-conta.md). O HTML direto permanece demonstração legada sem login. Não há API clínica completa, OCR de produção ou publicação nas lojas. A leitura compartilhada de metadados exige convite aceito; push externo ainda depende de configuração e integração móvel. Google e envio de e-mail dependem de configuração externa. O código está no repositório GitHub Gabale91/noscuidamos; publicação do código não equivale à implantação na hospedagem.
 
 Atualização: o [módulo de notificações](docs/modulo-notificacoes.md) acrescenta sino, histórico persistido, cópia de metadados de atendimento no servidor, convites de leitura e filas de push/lembretes. Não é uma API clínica completa; arquivos permanecem no navegador de origem. Push externo exige configuração e integração móvel, ainda sem envio real homologado.
 
@@ -32,4 +36,4 @@ A base usa Expo SDK 54, React 19.1 e React Native 0.81, combinação documentada
 4. Integrar armazenamento seguro, documentos e revisão humana transacional.
 5. Implementar notificações, relatórios e direitos de privacidade; executar homologação e revisão de segurança.
 
-Os detalhes e cenários de aceite estão na documentação. Inicialização de Git, commit e associação a remoto podem ser feitos quando o ambiente Git estiver configurado; nenhum commit ou push foi realizado.
+Os detalhes e cenários de aceite estão na documentação. O repositório local está associado a Gabale91/noscuidamos. A adaptação PHP usa o plano atual da Locaweb e não provisiona serviços pagos.

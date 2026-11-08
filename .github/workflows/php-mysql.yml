@@ -1,0 +1,43 @@
+name: Validar PHP 8.3 e MySQL
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: local-ci-only
+          MYSQL_ROOT_HOST: "%"
+          MYSQL_DATABASE: cuidado_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -plocal-ci-only"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      PHP_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cuidado_test;charset=utf8mb4
+      PHP_TEST_USER: root
+      PHP_TEST_PASSWORD: local-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo, openssl, curl
+          coverage: none
+      - name: Verificar sintaxe
+        run: find php tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Regras e transações MySQL
+        run: php tests/php-integration.php
+      - name: Gerar pacote sem credenciais
+        run: node scripts/package-php.mjs
+      - name: HTTP e documentos privados
+        run: node --test tests/php-http.test.mjs

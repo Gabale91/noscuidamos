@@ -21,3 +21,5 @@ release/
 scripts/configurar-ftp.ps1
 scripts/ftp-probe.ps1
 scripts/check-ftp.mjs
+php/cuidado-config.php
+php/config.local.php
