@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMailer,mailSettings } from '../server/mail.mjs';
-const env={MAIL_PROVIDER:'smtp',MAIL_FROM:'Cuidado em Família <contato@gabale.com.br>',SMTP_HOST:'email-ssl.com.br',SMTP_PORT:'465',SMTP_SECURE:'true',SMTP_USER:'contato@gabale.com.br',SMTP_PASSWORD:'somente-teste'};
+const env={MAIL_PROVIDER:'smtp',MAIL_FROM:'Nós Cuidamos <contato@gabale.com.br>',SMTP_HOST:'email-ssl.com.br',SMTP_PORT:'465',SMTP_SECURE:'true',SMTP_USER:'contato@gabale.com.br',SMTP_PASSWORD:'somente-teste'};
 test('Locaweb usa TLS e só informa envio após aceite SMTP',async()=>{
   const calls=[];const mail=createMailer({env,transportFactory:options=>{assert.equal(options.host,'email-ssl.com.br');assert.equal(options.port,465);assert.equal(options.secure,true);assert.equal(options.requireTLS,true);return {verify:async()=>true,sendMail:async message=>{calls.push(message);return {accepted:['teste@example.test'],rejected:[],messageId:'123'};}};}});
   assert.equal(mail.configured,true);await mail.verify();assert.equal(calls.length,0);

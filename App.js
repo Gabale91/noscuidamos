@@ -7,7 +7,7 @@ export default function App() {
   const [name, setName] = useState('');
   const [active, setActive] = useState(null);
   return <SafeAreaView style={s.page}><ScrollView contentContainerStyle={s.body}>
-    <Text style={s.title}>Cuidado em Família</Text>
+    <Text style={s.title}>Nós Cuidamos</Text>
     <Text style={s.note}>Base de desenvolvimento • use dados fictícios. Dados desta tela ficam apenas na memória.</Text>
     <Text style={s.heading}>Pacientes</Text>
     {patients.map(p => <Pressable accessibilityRole="button" key={p.id} style={s.card} onPress={() => setActive(p.id)}>

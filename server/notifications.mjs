@@ -12,7 +12,7 @@ const titles = {
   reminder:'Lembrete de agendamento'
 };
 const internalEvents = new Set(['appointment_cancelled','appointment_completed','medication_created','medication_updated','medication_suspended','medication_completed','post_updated','result_added']);
-const genericBody = 'Há uma atualização no Cuidado em Família. Entre no aplicativo para conferir os detalhes.';
+const genericBody = 'Há uma atualização no Nós Cuidamos. Entre no aplicativo para conferir os detalhes.';
 export function reminderTimes(date,time,timezone='America/Sao_Paulo',now=Date.now()) {
   // Convert the entered wall-clock time using IANA zone rules (never browser/host timezone).
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return [];

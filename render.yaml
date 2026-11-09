@@ -23,7 +23,7 @@ services:
       - key: MAIL_PROVIDER
         value: smtp
       - key: MAIL_FROM
-        value: Cuidado em Família <noscuidamos@gabale.com.br>
+        value: Nós Cuidamos <noscuidamos@gabale.com.br>
       - key: SMTP_HOST
         value: email-ssl.com.br
       - key: SMTP_PORT

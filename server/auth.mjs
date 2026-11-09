@@ -102,7 +102,7 @@ export async function createAuthServer(options = {}) {
           if(!mailConfigured)reject('Envio de e-mail ainda não configurado neste ambiente.',503);
           if(!invite.publicConfigured)reject('Configure um endereço público do aplicativo antes de enviar convites por e-mail.',503);
           const id=inviteLinks.recordEmail(body.patient,email);
-          try{await sendMail({to:email,link:invite.link,purpose:'Convite para acompanhar paciente',subject:'💚 Você recebeu um convite — Cuidado em Família',text:invite.message});inviteLinks.emailStatus(id,'Enviado');}
+          try{await sendMail({to:email,link:invite.link,purpose:'Convite para acompanhar paciente',subject:'💚 Você recebeu um convite — Nós Cuidamos',text:invite.message});inviteLinks.emailStatus(id,'Enviado');}
           catch{inviteLinks.emailStatus(id,'Falha');reject('Não foi possível enviar o convite por e-mail. Tente novamente.',503);}
           return json(res,200,{message:'Convite aceito pelo serviço de e-mail para envio. A entrega depende do provedor.'});
         }
@@ -311,5 +311,5 @@ export async function createAuthServer(options = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   if(existsSync(resolve('.env')))process.loadEnvFile(resolve('.env'));
   const server = await createAuthServer();
-  server.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => console.log('Cuidado em Família: ' + (process.env.APP_ORIGIN || 'http://localhost:3000')));
+  server.listen(Number(process.env.PORT || 3000), process.env.HOST || '127.0.0.1', () => console.log('Nós Cuidamos: ' + (process.env.APP_ORIGIN || 'http://localhost:3000')));
 }

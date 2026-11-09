@@ -44,7 +44,7 @@ try {
         if(!$link)fail('Convite indisponível.',404);$code=implode('-',str_split($link['code'],4));if(!hash_equals($link['code_hash'],digest($code)))fail('Convite substituído.',404);
         $store=$config['play_store_url']??'';if($store&&!preg_match('#^https://play\.google\.com/store/apps/details\?id=[A-Za-z0-9_.]+$#',$store))fail('Endereço da loja inválido.',503);
         if($store&&str_contains($_SERVER['HTTP_USER_AGENT']??'','Android'))redirect_to($store);
-        header('Content-Type: text/html; charset=utf-8');echo '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Convite</title><main><h1>💚 Cuidado em Família</h1><p>Código de vinculação: <strong>'.e($code).'</strong></p>'.($store?'<a href="'.e($store).'">Baixar na Google Play</a>':'<p>O aplicativo ainda não está publicado na Google Play. Acesse pela web.</p>').'<p><a href="/?patientCode='.rawurlencode($code).'">Cadastrar ou entrar no aplicativo</a></p></main></html>';exit;
+        header('Content-Type: text/html; charset=utf-8');echo '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Convite</title><main><h1>💚 Nós Cuidamos</h1><p>Código de vinculação: <strong>'.e($code).'</strong></p>'.($store?'<a href="'.e($store).'">Baixar na Google Play</a>':'<p>O aplicativo ainda não está publicado na Google Play. Acesse pela web.</p>').'<p><a href="/?patientCode='.rawurlencode($code).'">Cadastrar ou entrar no aplicativo</a></p></main></html>';exit;
     }
     $assets=$private.'/assets';
     if($path==='/app'){
