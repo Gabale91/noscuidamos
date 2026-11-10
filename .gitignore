@@ -24,3 +24,7 @@ scripts/check-ftp.mjs
 php/cuidado-config.php
 php/config.local.php
 scripts/locaweb-*.ps1
+mobile/android/
+mobile/www/
+*.apk
+*.jks

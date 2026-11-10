@@ -1,0 +1,8 @@
+{
+  "appId": "br.com.gabale.noscuidamos.teste",
+  "appName": "Nós Cuidamos",
+  "webDir": "www",
+  "backgroundColor": "#f5fbf9",
+  "android": {"allowMixedContent": false},
+  "server": {"androidScheme":"https"}
+}

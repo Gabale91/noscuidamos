@@ -1,0 +1,19 @@
+{
+  "name": "nos-cuidamos-android",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "android:prepare": "node node_modules/@capacitor/cli/bin/capacitor add android && node prepare-android.mjs && node node_modules/@capacitor/cli/bin/capacitor sync android"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/browser": "8.0.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "esbuild": "0.28.2"
+  }
+}

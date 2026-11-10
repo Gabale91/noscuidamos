@@ -1,0 +1,11 @@
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+import {build} from 'esbuild';
+import {fileURLToPath} from 'node:url';
+import {dirname,resolve} from 'node:path';
+const root=dirname(fileURLToPath(import.meta.url));
+await mkdir(root+'/www',{recursive:true});
+await copyFile(root+'/src/index.html',root+'/www/index.html');
+const prototype=await readFile(resolve(root,'../prototypes/cuidado-em-familia-teste-fluxo-corrigido.html'),'utf8');
+await writeFile(root+'/www/demo.html',prototype.replace('</body>','<script src="demo-adapter.js"></script></body>'));
+for(const entry of ['launcher','demo-adapter'])await build({entryPoints:[root+'/src/'+entry+'.js'],outfile:root+'/www/'+entry+'.js',bundle:true,format:'iife',target:'es2020',define:{__BUILD_ID__:JSON.stringify(process.env.GITHUB_SHA?.slice(0,7)||'local')},legalComments:'eof'});
+console.log('Telas existentes copiadas para o APK; nenhuma senha ou banco incluído.');

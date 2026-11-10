@@ -1,0 +1,57 @@
+name: Gerar APK Android de testes
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - 'prototypes/**'
+      - '.github/workflows/android-apk.yml'
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar dependências fixadas
+        working-directory: mobile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Preparar telas e projeto Android
+        working-directory: mobile
+        run: |
+          npm run build
+          npm run android:prepare
+      - name: Compilar APK assinado para testes
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug lintDebug
+      - name: Preparar download e verificação
+        run: |
+          mkdir -p apk-download
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk apk-download/nos-cuidamos-teste.apk
+          cp docs/android-apk.md apk-download/LEIA-ME.md
+          cd apk-download
+          sha256sum nos-cuidamos-teste.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nos-cuidamos-apk-teste
+          path: apk-download/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Resumo do download
+        run: |
+          echo '### APK Nós Cuidamos' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Baixe **nos-cuidamos-apk-teste** na seção Artifacts desta execução. É um APK debug instalável, sem Google Play.' >> "$GITHUB_STEP_SUMMARY"
