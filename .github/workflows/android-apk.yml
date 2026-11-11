@@ -82,8 +82,7 @@ jobs:
             grep -q 'Status: ok' android-start.txt
             adb shell pidof br.com.gabale.noscuidamos.teste
             adb shell am start -W -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:br.com.gabale.noscuidamos.teste
-            adb shell uiautomator dump /sdcard/nc-icon.xml
-            adb shell cat /sdcard/nc-icon.xml | grep -q 'Nós Cuidamos'
+            bash -e -c 'for attempt in {1..10}; do adb shell uiautomator dump /sdcard/nc-icon.xml >/dev/null 2>&1 || true; if adb shell cat /sdcard/nc-icon.xml 2>/dev/null | grep -q "Nós Cuidamos"; then exit 0; fi; sleep 2; done; exit 1'
             adb exec-out screencap -p > android-icone.png
       - uses: actions/upload-artifact@v4
         with:
