@@ -57,3 +57,39 @@ jobs:
         run: |
           echo '### APK Nós Cuidamos' >> "$GITHUB_STEP_SUMMARY"
           echo 'Baixe **nos-cuidamos-apk-teste** na seção Artifacts desta execução. É um APK debug instalável, sem Google Play.' >> "$GITHUB_STEP_SUMMARY"
+  instalar:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nos-cuidamos-apk-teste
+          path: apk-download
+      - name: Permitir aceleração no emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: |
+            adb install apk-download/nos-cuidamos-teste.apk
+            adb shell am start -W -n br.com.gabale.noscuidamos.teste/.MainActivity | tee android-start.txt
+            grep -q 'Status: ok' android-start.txt
+            adb shell pidof br.com.gabale.noscuidamos.teste
+            adb shell am start -W -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:br.com.gabale.noscuidamos.teste
+            adb shell uiautomator dump /sdcard/nc-icon.xml
+            adb shell cat /sdcard/nc-icon.xml | grep -q 'Nós Cuidamos'
+            adb exec-out screencap -p > android-icone.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nos-cuidamos-validacao-android
+          path: |
+            android-icone.png
+            android-start.txt
+          retention-days: 30
+          if-no-files-found: error
