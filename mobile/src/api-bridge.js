@@ -11,7 +11,11 @@ window.fetch = async function (input, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await originalFetch(apiOrigin + input, {
+    const route = new URL(input,apiOrigin);
+    const endpoint = new URL('/index.php',apiOrigin);
+    endpoint.search = route.search;
+    endpoint.searchParams.set('nc_route',route.pathname);
+    const response = await originalFetch(endpoint, {
       ...options, headers, credentials: 'omit', redirect: 'error',
       signal: options.signal ?? controller.signal
     });

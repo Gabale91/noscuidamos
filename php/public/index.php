@@ -16,6 +16,13 @@ require $private.'/src/core.php';
 require $private.'/src/mail.php';
 require $private.'/src/registration.php';
 try {
+    $method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
+    // Explicit PHP entry point for hosts that redirect extensionless URLs before IIS Rewrite.
+    if($path==='/index.php' && array_key_exists('nc_route',$_GET)){
+        $route=$_GET['nc_route'];
+        if(!is_string($route)||!preg_match('~^/(?:healthz|api/[a-z][a-z-]*(?:/[a-z][a-z-]*)*)$~D',$route))fail('Rota inválida.',404);
+        $path=$route;
+    }
     $configFile=getenv('CUIDADO_CONFIG')?:$private.'/cuidado-config.php';
     if(!is_file($configFile))fail('Instalação pendente: configure o arquivo privado do aplicativo.',503);
     $cfgPath=realpath($configFile);
@@ -27,7 +34,6 @@ try {
     }
     $config=require $configFile;
     if(!is_array($config)||!filter_var($config['origin']??'',FILTER_VALIDATE_URL))fail('Configuração inválida.',503);
-    $method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
     $mobileOrigin=str_starts_with($config['origin'],'https://') && str_starts_with($path,'/api/') && ($_SERVER['HTTP_ORIGIN']??'')==='https://localhost';
     if($mobileOrigin){
         if(($_SERVER['HTTPS']??'')!=='on')fail('Use uma conexão HTTPS.',403);
