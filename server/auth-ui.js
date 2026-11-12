@@ -18,7 +18,7 @@ function formData(form){const data=Object.fromEntries(new FormData(form));return
 function formWatch(){const form=document.querySelector('form[data-watch]');if(!form)return;const update=()=>{const docs=window.ncLegalDocuments;const requiresDocs=config.features?.includes('emailRegistration')&&form.elements.accepted;const current=!requiresDocs||(docs?.terms.version===config.termsVersion&&docs?.privacy.version===config.privacyVersion);if(requiresDocs&&!current)message('Atualize o aplicativo para consultar os documentos vigentes.');const p=form.elements.password,c=form.elements.confirmPassword;if(c)c.setCustomValidity(c.value!==p.value?'As senhas não coincidem.':'');form.querySelector('[type=submit]').disabled=!current||!form.checkValidity();const google=document.getElementById('googleRegister');if(google)google.disabled=!current||!form.elements.accepted.checked||!config.googleConfigured;};form.addEventListener('input',update);form.addEventListener('change',update);update();}
 function page(mode='login'){
   if(mode==='register')root.innerHTML=`<h1>Primeiro acesso</h1><form data-watch data-auth-submit="register-submit">${input('Nome completo','name')}${input('E-mail','email','email')}${password('Senha','password')}${password('Confirmação de senha','confirmPassword')}<p class="note">${config.features?.includes('emailRegistration')?'Use pelo menos 6 caracteres, incluindo maiúscula, minúscula, número e símbolo.':'Use de 3 a 128 caracteres, com pelo menos uma letra maiúscula e um número.'}</p>${input('Código do paciente (opcional)','patientCode','text',sessionStorage.getItem('cf-pending-patient-code')||'',false)}<p class="note">Recebeu um convite de um familiar? Informe o código para acessar o paciente compartilhado após concluir seu cadastro.</p>${remember()}${consent()}<p id="message" role="alert"></p><button class="primary" type="submit" disabled>${config.features?.includes('emailRegistration')?'Confirmar cadastro':'Concluir cadastro'}</button><button id="googleRegister" type="button" data-auth-click="google-register" disabled>Cadastrar com Google</button></form><p class="note">No cadastro Google, nome e e-mail vêm da conta escolhida; o aceite acima continua obrigatório.</p><button data-auth-click="login">Já tenho conta</button>`;
-  else if(mode==='forgot')root.innerHTML=`<h1>Esqueci minha senha</h1><form data-auth-submit="forgot-submit">${input('E-mail','email','email')}<p id="message" role="alert"></p><button class="primary">Enviar link de redefinição</button></form>${!config.mailConfigured?'<p class="note">Envio de e-mail ainda não configurado neste ambiente.</p>':''}<button data-auth-click="login">Voltar ao login</button>`;
+  else if(mode==='forgot')root.innerHTML=`<h1>Esqueci minha senha</h1><form data-auth-submit="forgot-submit">${input('E-mail','email','email')}<p id="message" role="alert"></p><button class="primary">Enviar link de redefinição</button></form>${window.ncAndroidApiOrigin?'<form data-auth-submit="android-recovery-submit"><label for="recoveryLink">Link recebido por e-mail</label><input id="recoveryLink" name="recoveryLink" type="url" required autocomplete="off"><button>Redefinir senha no aplicativo</button></form>':''}${!config.mailConfigured?'<p class="note">Envio de e-mail ainda não configurado neste ambiente.</p>':''}<button data-auth-click="login">Voltar ao login</button>`;
   else if(mode==='reset')root.innerHTML=`<h1>Redefinir senha</h1><form data-watch data-auth-submit="reset-submit">${password('Nova senha','password')}${password('Confirmação de senha','confirmPassword')}<p id="message" role="alert"></p><button class="primary" type="submit" disabled>Salvar nova senha</button></form><button data-auth-click="login">Voltar ao login</button>`;
   else if(mode==='consent')root.innerHTML=`<h1>Documentos atualizados</h1><p>Leia e aceite as versões atuais antes de continuar.</p><form data-watch data-auth-submit="consent-submit">${consent()}<p id="message" role="alert"></p><button class="primary" type="submit" disabled>Aceitar e continuar</button></form><button data-auth-click="consent-logout">Sair</button>`;
   else root.innerHTML=`<h1>Nós Cuidamos</h1><h2>Entrar na sua conta</h2><form data-auth-submit="login-submit">${input('E-mail','email','email')}${password('Senha','password',true)}${remember()}<p id="message" role="alert"></p><button class="primary" type="submit">Entrar</button></form><button data-auth-click="google-login" ${config.googleConfigured?'':'disabled'}>Entrar com Google</button>${!config.googleConfigured?'<p class="note">Login Google ainda não configurado.</p>':''}<button data-auth-click="register">Primeiro acesso</button><button class="link" style="margin-top:18px" data-auth-click="forgot">Esqueci minha senha</button>`;
@@ -70,6 +70,18 @@ async function registrationRequest(event,request){
 }
 async function google(register){try{const {accepted,remember,termsVersion,privacyVersion,patientCode}=formData(document.querySelector('form'));const result=await api('google/start',{accepted,remember,termsVersion,privacyVersion,patientCode,register});location.assign(result.url);}catch(error){message(error.message);}}
 async function forgot(e){e.preventDefault();try{const data=await api('forgot',formData(e.target));message(data.message,false);}catch(error){message(error.message);}}
+function openAndroidRecovery(event){
+  event.preventDefault();
+  const link=String(new FormData(event.target).get('recoveryLink')||'').trim();
+  try{
+    const url=new URL(link);
+    const tokens=url.searchParams.getAll('reset');
+    if(url.origin!==window.ncAndroidApiOrigin||url.pathname!=='/'||url.username||url.password||
+       tokens.length!==1||!/^[a-f0-9]{64}$/.test(tokens[0]))throw new Error();
+    resetToken=tokens[0];
+    page('reset');
+  }catch{message('Cole o link de redefinição recebido no e-mail do Nós Cuidamos.');}
+}
 async function resetPassword(e){e.preventDefault();try{await api('reset',{...formData(e.target),token:resetToken});resetToken=null;history.replaceState(null,'','/');page();message('Senha redefinida. Entre com sua nova senha.',false);}catch(error){message(error.message);}}
 function modal(content){const previous=document.activeElement,dialog=document.createElement('dialog');dialog.innerHTML=content;dialog.setAttribute('aria-labelledby','modalTitle');const close=()=>{dialog.close();dialog.remove();previous?.focus();};dialog.addEventListener('cancel',e=>{e.preventDefault();close();});document.body.append(dialog);dialog.showModal();dialog.closeModal=close;return dialog;}
 function legal(type){
@@ -106,6 +118,7 @@ const authActions = {
     'register-resend': resendRegistration,
     'consent-submit': e => submitAuth(e,'consent'),
     'forgot-submit': forgot,
+    'android-recovery-submit': openAndroidRecovery,
     'reset-submit': resetPassword,
     'google-register': () => google(true),
     'google-login': () => google(false),

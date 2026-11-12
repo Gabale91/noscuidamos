@@ -1,4 +1,4 @@
-import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,copyFile,rm} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {dirname,resolve} from 'node:path';
@@ -9,6 +9,9 @@ const out=root+'/www';
 const assets=repo+'/release/locaweb-php/private/assets';
 execFileSync(process.execPath,['scripts/package-php.mjs'],{cwd:repo,stdio:'inherit'});
 await mkdir(out,{recursive:true});
+for(const file of ['demo.html','demo-adapter.js','launcher.js']){
+  await rm(resolve(out,file),{force:true});
+}
 
 const connect="connect-src 'self' https://noscuidamos.gabale.com.br";
 const authPolicy="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "+connect;

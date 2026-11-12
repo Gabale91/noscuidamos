@@ -42,7 +42,16 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
     if(mobile){
       assert.equal(login.r.headers.get('set-cookie'),null);
       assert.match(login.data.sessionToken,/^[a-f0-9]{64}$/);
-      return {...headers,Authorization:'Bearer '+login.data.sessionToken};
+      assert.equal((await api('forgot',{email},'',headers)).r.status,200);
+      const token=(await readFile(tmp+'/message.txt','utf8')).match(/\?reset=([a-f0-9]{64})/)[1];
+      const replacement='NovaSenha2!';
+      const reset={token,password:replacement,confirmPassword:replacement};
+      assert.equal((await api('reset',reset,'',headers)).r.status,200);
+      assert.equal((await api('reset',reset,'',headers)).r.status,400);
+      assert.equal((await api('mobile/context',undefined,'',{...headers,Authorization:'Bearer '+login.data.sessionToken})).r.status,401);
+      const resumed=await api('login',{email,password:replacement},'',headers);
+      assert.equal(resumed.r.status,200);
+      return {...headers,Authorization:'Bearer '+resumed.data.sessionToken};
     }
     assert.equal(login.data.sessionToken,undefined);
     const cookie=login.r.headers.get('set-cookie').split(';')[0];

@@ -1,4 +1,5 @@
 const apiOrigin = 'https://noscuidamos.gabale.com.br';
+window.ncAndroidApiOrigin = apiOrigin;
 const sessionKey = 'nc-android-session';
 const originalFetch = window.fetch.bind(window);
 
