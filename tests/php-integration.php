@@ -12,6 +12,7 @@ $a->db->exec(file_get_contents(__DIR__.'/../php/004-registration.sql'));
 $messages=[];
 $a->config['smtp']['password']='fixture';
 $a->config['mail_transport']=function($smtp,$to,$subject,$text)use(&$messages){$messages[$to]=$text;};
+$a->db->exec(file_get_contents(__DIR__.'/../php/005-patient-admins.sql'));
 $passed=0;
 function check(bool $ok,string $label):void{global $passed;if(!$ok)throw new RuntimeException('FALHOU: '.$label);$passed++;echo "OK {$label}\n";}
 function rejected(callable $fn,int $status,string $label):void{try{$fn();}catch(HttpError $e){check($e->status===$status,$label);return;}throw new RuntimeException('Aceitou indevidamente: '.$label);}
@@ -87,6 +88,27 @@ check($a->one("SELECT post_notes FROM cf_clinical_records WHERE patient=? AND ca
 rejected(fn()=>$a->join($outsider['id'],$code),404,'convite utilizado não vincula outra conta');
 $info=$a->info($owner['id'],$patientId);check(str_contains($info['message'],'💚')&&str_contains($info['link'],'/convite/'),'convite UTF-8 com link');
 $a->notifications($owner['id'],'revoke',['patient'=>$patientId,'userId'=>$relative['id']]);rejected(fn()=>$a->shared($relative['id'],$patientId),403,'revogação imediata');rejected(fn()=>$a->join($outsider['id'],$code),404,'código antigo invalidado');check(!$a->one('SELECT id FROM cf_links WHERE patient=?',[$patientId]),'link antigo removido');
+$subject=['patient'=>$patientId,'userId'=>$relative['id']];
+check($a->managePatient($owner['id'],'admin-members',$subject)['needsSecondAdmin'],'criador é administrador e configuração inicia pendente');
+$a->join($relative['id'],$a->patientCode($owner['id'],$patientId)['code']);
+rejected(fn()=>$a->managePatient($relative['id'],'admin-invite',$subject),403,'familiar não promove administradores');
+$a->managePatient($owner['id'],'admin-invite',$subject);
+check($a->managePatient($owner['id'],'admin-members',$subject)['needsSecondAdmin'],'convite pendente não conta como administrador');
+rejected(fn()=>$a->managePatient($outsider['id'],'admin-accept',$subject),403,'terceiro não aceita convite direcionado');
+$a->managePatient($relative['id'],'admin-accept',$subject);
+check(!$a->managePatient($relative['id'],'admin-members',$subject)['needsSecondAdmin'],'segundo administrador ativo após aceite');
+rejected(fn()=>$a->managePatient($owner['id'],'admin-remove',$subject+['confirmed'=>true]),409,'bloqueia remoção abaixo de dois administradores');
+$a->join($outsider['id'],$a->patientCode($owner['id'],$patientId)['code']);
+$third=['patient'=>$patientId,'userId'=>$outsider['id']];
+$a->managePatient($relative['id'],'admin-invite',$third);
+$a->managePatient($outsider['id'],'admin-accept',$third);
+rejected(fn()=>$a->managePatient($relative['id'],'admin-demote',$third),400,'rebaixamento exige confirmação');
+$a->managePatient($relative['id'],'admin-demote',$third+['confirmed'=>true]);
+check($a->shared($outsider['id'],$patientId)['id']===$patientId,'rebaixamento preserva vínculo de familiar');
+$a->managePatient($relative['id'],'admin-remove',$third+['confirmed'=>true]);
+rejected(fn()=>$a->shared($outsider['id'],$patientId),403,'administrador adicional revoga acesso');
+check((bool)$a->one('SELECT id FROM cf_users WHERE id=?',[$outsider['id']]),'revogação preserva a conta');
+check((bool)$a->one("SELECT id FROM cf_audit WHERE action='admin_demoted' AND user_id=? AND target=?",[$relative['id'],$patientId]),'mudança de papel registrada em auditoria');
 $badConfig=$config;$badConfig['storage']=__DIR__;$_SERVER['DOCUMENT_ROOT']=__DIR__;$badApp=new App($badConfig);rejected(fn()=>$badApp->storageRoot(),503,'pasta pública recusada para anexos');unset($_SERVER['DOCUMENT_ROOT']);
 $a->sessionHash=$ownerSession;rejected(fn()=>$a->auth('profile',['name'=>'Responsável','email'=>$relative['email'],'photo'=>''],'POST'),409,'troca para e-mail ocupado rejeitada');
 $a->auth('logout',[],'POST');rejected(fn()=>$a->user(),401,'logout invalida sessão');$a->sessionHash=$relativeSession;$a->auth('password',['currentPassword'=>'Teste1!','password'=>'Nova2!','confirmPassword'=>'Nova2!'],'POST');rejected(fn()=>$a->user(),401,'troca de senha invalida sessões');

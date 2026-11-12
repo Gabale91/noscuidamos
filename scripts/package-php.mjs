@@ -12,6 +12,7 @@ await copyFile('php/schema.sql',out+'/private/schema.sql');
 await copyFile('php/002-clinical.sql',out+'/private/002-clinical.sql');
 await copyFile('php/003-invites.sql',out+'/private/003-invites.sql');
 await copyFile('php/004-registration.sql',out+'/private/004-registration.sql');
+await copyFile('php/005-patient-admins.sql',out+'/private/005-patient-admins.sql');
 await copyFile('php/migrate.php',out+'/private/migrate.php');
 for(const [source,target] of [['server/login.html','login.html'],['server/auth-ui.js','auth-ui.js'],['server/notifications-ui.js','notifications-ui.js'],['prototypes/cuidado-em-familia-teste-fluxo-corrigido.html','app.html']])await copyFile(source,out+'/private/assets/'+target);
 // index lives in /web/noscuidamos; the private directory is a sibling OUTSIDE /web.
@@ -45,7 +46,7 @@ let app=inline[1]
 const appBindings=compileClinicalHandlers(app);
 await writeFile(out+'/private/assets/clinical-app.js',appBindings.compiled);
 await writeFile(out+'/private/assets/clinical-events.js',clinicalEventCode(new Set([...appBindings.actions,...noticeBindings.actions])));
-html=html.replace(inline[0],'<!-- NC_CONTEXT --><script src="/clinical-app.js"></script><script src="/php-bootstrap.js"></script><script src="/notifications-ui.js"></script><script src="/php-files.js"></script><script src="/clinical-events.js"></script>');
+html=html.replace(inline[0],'<!-- NC_CONTEXT --><script src="/clinical-app.js"></script><script src="/php-bootstrap.js"></script><script src="/notifications-ui.js"></script><script src="/php-files.js"></script><script src="/clinical-events.js"></script><script src="/patient-admin-ui.js"></script>');
 await writeFile(out+'/private/assets/app.html',html);
 await copyFile('docs/locaweb-php.md',out+'/LEIA-ME.md');
 await copyFile('docs/publicacao-producao.md',out+'/PUBLICACAO.md');

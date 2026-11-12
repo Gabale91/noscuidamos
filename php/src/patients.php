@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/clinical.php';
+require_once __DIR__.'/patient-administration.php';
 trait PatientApi {
+    use PatientAdministration;
     private function clinicalData(string $id): array {
         $data = (new ClinicalStore($this->db))->read($id);
         return json_decode(json_encode($data, JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION), true, 512, JSON_THROW_ON_ERROR);
@@ -33,8 +35,8 @@ trait PatientApi {
     }
     public function patientCode(string $user,string $id): array {
         return $this->tx(function () use ($user,$id) {
-            $p=$this->one('SELECT code FROM cf_patients WHERE id=? AND owner=? FOR UPDATE',[$id,$user]);
-            if(!$p)fail('Paciente indisponível ou acesso revogado.',403);
+            $p=$this->one('SELECT code,owner FROM cf_patients WHERE id=? FOR UPDATE',[$id]);
+            if(!$p||!$this->canAdministerPatient($user,$id,$p['owner']))fail('Paciente indisponível ou acesso revogado.',403);
             $code=$p['code'];
             $limit=$this->one('SELECT code_hash,expires,used_at FROM cf_invite_limits WHERE patient=? FOR UPDATE',[$id]);
             if($limit && $limit['used_at']===null && (int)$limit['expires']>nowms() && hash_equals($limit['code_hash'],digest($code))){
@@ -49,7 +51,7 @@ trait PatientApi {
         });
     }
     public function info(string $user,string $id): array {
-        $p=$this->patient($user,$id,true);$code=$this->patientCode($user,$id)['code'];$h=digest($code);
+        $p=$this->patient($user,$id);$code=$this->patientCode($user,$id)['code'];$h=digest($code);
         $l=$this->one('SELECT id FROM cf_links WHERE patient=? AND code_hash=?',[$id,$h]);
         if(!$l){$l=['id'=>secret()];$this->q('INSERT INTO cf_links VALUES(?,?,?)',[$l['id'],$id,$h]);}
         $link=$this->config['origin'].'/convite/'.$l['id'];$name=preg_replace('/[\r\n*]/',' ',$p['name']);
@@ -115,6 +117,7 @@ trait PatientApi {
     }
     public function notifications(string $user,string $action,array $b): array {
         $patient=(string)($b['patient']??$_GET['patient']??'');
+        if(str_starts_with($action,'admin-'))return $this->managePatient($user,$action,$b);
         if($action==='sync')return $this->sync($user,$b);
         if($action==='list')return $this->notices($user);
         if($action==='state'){$p=$this->q('SELECT id,name FROM cf_patients WHERE owner=? ORDER BY name',[$user])->fetchAll();foreach($p as &$row){$row['members']=$this->q('SELECT m.user_id,m.active,u.name,u.email FROM cf_members m JOIN cf_users u ON u.id=m.user_id WHERE patient=?',[$row['id']])->fetchAll();foreach($row['members'] as &$m)$m['active']=(int)$m['active'];unset($m);}unset($row);return ['revision'=>(int)($this->one('SELECT revision FROM cf_sync WHERE user_id=?',[$user])['revision']??0),'patients'=>$p,'push'=>[]];}
@@ -124,7 +127,7 @@ trait PatientApi {
         if($action==='join-patient')return $this->join($user,(string)($b['code']??''));
         if($action==='shared-patients')return ['patients'=>$this->q('SELECT p.id,p.name FROM cf_patients p JOIN cf_members m ON m.patient=p.id WHERE m.user_id=? AND m.active=1 AND p.owner<>?',[$user,$user])->fetchAll()];
         if($action==='shared-patient')return $this->shared($user,$patient);
-        if($action==='revoke'){$this->tx(function()use($user,$patient,$b){$this->patient($user,$patient,true);$this->q('UPDATE cf_members SET active=0 WHERE patient=? AND user_id=?',[$patient,(string)($b['userId']??'')]);$this->q('UPDATE cf_patients SET code=? WHERE id=?',[strtoupper(bin2hex(random_bytes(10))),$patient]);$this->q('DELETE FROM cf_links WHERE patient=?',[$patient]);$this->audit('access_revoked',$user,$patient);});return ['ok'=>true];}
+        if($action==='revoke')return $this->managePatient($user,'admin-remove',['patient'=>$patient,'userId'=>$b['userId']??null,'confirmed'=>true]);
         if($action==='send-invite'){$email=email_value($b['email']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Informe um e-mail válido.');$i=$this->info($user,$patient);$this->send($email,'Você recebeu um convite — Nós Cuidamos',$i['message']);$this->audit('invite_email_submitted',$user,$patient);return ['message'=>'Convite aceito pelo serviço de e-mail para envio.'];}
         if($action==='read'){if(($b['id']??'')==='all')$this->q('UPDATE cf_notices SET read_at=COALESCE(read_at,?) WHERE user_id=?',[nowms(),$user]);else $this->q('UPDATE cf_notices SET read_at=COALESCE(read_at,?) WHERE id=? AND user_id=?',[nowms(),(string)($b['id']??''),$user]);return ['ok'=>true];}
         if($action==='details'){$n=$this->one('SELECT * FROM cf_notices WHERE id=? AND user_id=?',[(string)($_GET['id']??''),$user]);if(!$n)fail('Notificação indisponível.',404);$p=$this->shared($user,$n['patient']);foreach($p['data'][$n['record_type']==='medication'?'meds':'appointments']??[] as $r)if((string)$r['id']===$n['record_id'])return ['patient'=>['name'=>$p['name'],'localId'=>$p['localId'],'isOwner'=>$p['isOwner']],'record'=>$r,'type'=>$n['record_type']];fail('Registro indisponível.',404);}

@@ -9,7 +9,7 @@ async function loadClinicalApp() {
     context.type = 'application/json';
     context.textContent = JSON.stringify(await response.json());
     document.body.append(context);
-    for (const src of ['/clinical-app.js','/php-bootstrap.js','/notifications-ui.js','/php-files.js','/clinical-events.js','/mobile-tools.js']) {
+    for (const src of ['/clinical-app.js','/php-bootstrap.js','/notifications-ui.js','/php-files.js','/clinical-events.js','/patient-admin-ui.js','/mobile-tools.js']) {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = src;

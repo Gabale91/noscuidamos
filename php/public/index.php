@@ -98,7 +98,7 @@ try {
         readfile($assets.'/login.html');
         exit;
     }
-    $scripts=['/google-link.js'=>'google-link.js','/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js','/clinical-app.js'=>'clinical-app.js','/clinical-events.js'=>'clinical-events.js'];
+    $scripts=['/google-link.js'=>'google-link.js','/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js','/clinical-app.js'=>'clinical-app.js','/clinical-events.js'=>'clinical-events.js','/patient-admin-ui.js'=>'patient-admin-ui.js'];
     if(isset($scripts[$path])){header('Content-Type: text/javascript; charset=utf-8');readfile($assets.'/'.$scripts[$path]);exit;}
     fail('Página não encontrada.',404);
 }catch(HttpError $x){json_out(['error'=>$x->getMessage()],$x->status);}

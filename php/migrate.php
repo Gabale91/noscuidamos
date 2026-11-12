@@ -60,7 +60,7 @@ try {
                 throw $failure;
             }
         }
-        foreach (['003'=>'003-invites.sql','004'=>'004-registration.sql'] as $version=>$file) {
+        foreach (['003'=>'003-invites.sql','004'=>'004-registration.sql','005'=>'005-patient-admins.sql'] as $version=>$file) {
             $sql = file_get_contents(__DIR__.'/'.$file);
             if ($sql === false) throw new RuntimeException('SQL ausente.');
             $sql = str_replace("\r\n", "\n", $sql);
@@ -73,7 +73,7 @@ try {
                 $db->prepare('INSERT INTO cf_schema_migrations(version,checksum) VALUES(?,?)')->execute([$version,$checksum]);
             }
         }
-        echo "Esquemas 001 a 004 confirmados.\n";
+        echo "Esquemas 001 a 005 confirmados.\n";
     } finally {
         $q = $db->prepare('SELECT RELEASE_LOCK(?)');
         $q->execute([$lock]);
