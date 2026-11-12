@@ -31,10 +31,21 @@ try{
     ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',params:{
       awaitPromise:true,returnByValue:true,
       expression:`(async()=>{
-        const config=await fetch('/api/config');
-        const data=await config.json();
-        const me=await fetch('/api/me');
-        return {origin:location.origin,status:config.status,registration:data.features?.includes('emailRegistration'),anonymous:(await me.json()).user===null};
+        let last;
+        for(let attempt=0;attempt<12;attempt++){
+          try{
+            if(document.readyState==='loading')throw Error('Documento ainda carregando');
+            const config=await fetch('/api/config');
+            const data=await config.json();
+            const me=await fetch('/api/me');
+            if(config.status===200&&data.features?.includes('emailRegistration')){
+              return {origin:location.origin,status:config.status,registration:true,anonymous:(await me.json()).user===null};
+            }
+            last='HTTP '+config.status;
+          }catch(error){last=error.message;}
+          await new Promise(resolve=>setTimeout(resolve,1000));
+        }
+        return {origin:location.origin,error:last};
       })()`
     }}));
   });
