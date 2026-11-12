@@ -14,7 +14,7 @@ window.fetch = async function (input, options = {}) {
     const route = new URL(input,apiOrigin);
     const endpoint = new URL('/index.php',apiOrigin);
     endpoint.search = route.search;
-    endpoint.searchParams.set('nc_route',route.pathname);
+    endpoint.searchParams.set('nc_route',route.pathname==='/api/delete-account'?'/api/account/closure':route.pathname);
     const response = await originalFetch(endpoint, {
       ...options, headers, credentials: 'omit', redirect: 'error',
       signal: options.signal ?? controller.signal

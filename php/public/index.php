@@ -21,7 +21,7 @@ try {
     if($path==='/index.php' && array_key_exists('nc_route',$_GET)){
         $route=$_GET['nc_route'];
         if(!is_string($route)||!preg_match('~^/(?:healthz|api/[a-z][a-z-]*(?:/[a-z][a-z-]*)*)$~D',$route))fail('Rota inválida.',404);
-        $path=$route;
+        $path=$route==='/api/account/closure'?'/api/delete-account':$route;
     }
     $configFile=getenv('CUIDADO_CONFIG')?:$private.'/cuidado-config.php';
     if(!is_file($configFile))fail('Instalação pendente: configure o arquivo privado do aplicativo.',503);

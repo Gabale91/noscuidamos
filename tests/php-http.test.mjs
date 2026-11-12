@@ -47,6 +47,11 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   const explicit=await fetch(origin+'/index.php?nc_route=%2Fapi%2Fmobile%2Fcontext',{headers:mobile});
   assert.equal(explicit.status,200);
   assert.ok((await explicit.json()).userId);
+  const closure=origin+'/index.php?nc_route=%2Fapi%2Faccount%2Fclosure';
+  const requestClosure=(body,headers)=>fetch(closure,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await requestClosure({}, {...mobile,Authorization:''})).status,401);
+  assert.equal((await requestClosure({},mobile)).status,400);
+  assert.equal((await requestClosure({confirmation:'EXCLUIR',currentPassword:'incorreta'},mobile)).status,401);
   assert.equal((await fetch(origin+'/index.php?nc_route=%2Fprofile')).status,404);
   assert.equal((await fetch(origin+'/index.php?nc_route%5B%5D=%2Fhealthz')).status,404);
   assert.equal((await api('mobile/context',undefined,'',{Authorization:mobile.Authorization})).r.status,401);
