@@ -50,4 +50,5 @@ await writeFile(out+'/private/assets/app.html',html);
 await copyFile('docs/locaweb-php.md',out+'/LEIA-ME.md');
 await copyFile('docs/publicacao-producao.md',out+'/PUBLICACAO.md');
 await copyFile('scripts/backup-locaweb.ps1',out+'/private/backup-locaweb.ps1');
+await copyFile('scripts/check-locaweb-smtp.php',out+'/private/check-locaweb-smtp.php');
 console.log('Pacote criado em release/locaweb-php. Sem credenciais ou banco de pacientes.');
