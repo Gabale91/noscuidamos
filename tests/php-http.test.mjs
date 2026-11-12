@@ -19,10 +19,17 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
  const users=[];const api=async(path,body,cookie='',headers={})=>{const r=await fetch(origin+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{Origin:webOrigin,...(body instanceof FormData?{}:{'Content-Type':'application/json'})}),Cookie:cookie,...headers},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});return {r,data:await r.json()};};
  try{
   for(let i=0;i<80;i++){try{const r=await fetch(origin+'/healthz');if(r.ok)break;if(i===79)throw Error(await r.text());}catch(e){if(i===79)throw Error(String(e)+' '+logs);}await new Promise(r=>setTimeout(r,100));}
+  const {termsVersion,privacyVersion}= (await api('config')).data;
+  assert.match(termsVersion,/^[a-f0-9]{64}$/);
+  assert.match(privacyVersion,/^[a-f0-9]{64}$/);
+  assert.equal((await fetch(origin+'/privacidade.html')).status,200);
+  const draft={name:'Cadastro fictício',email:'sem-aceite@example.test',password:'Teste1!',confirmPassword:'Teste1!',termsVersion,privacyVersion};
+  assert.equal((await api('register',{...draft,accepted:false})).r.status,400);
+  assert.equal((await api('register',{...draft,accepted:true,termsVersion:'versao-antiga'})).r.status,400);
   async function account(prefix,mobile=false){
     const headers=mobile?{Origin:'https://localhost','X-NC-Android':'1','X-Fixture-TLS':'1'}:{};
     const email=prefix+'-'+crypto.randomUUID()+'@example.test', password='Teste1!';
-    const {r,data}=await api('register',{name:prefix,email,password,confirmPassword:password,accepted:true,termsVersion:'test-1',privacyVersion:'test-1'},'',headers);
+    const {r,data}=await api('register',{name:prefix,email,password,confirmPassword:password,accepted:true,termsVersion,privacyVersion},'',headers);
     assert.equal(r.status,202,JSON.stringify(data));
     assert.equal(r.headers.get('set-cookie'),null);
     assert.equal((await api('login',{email,password},'',headers)).r.status,401);
@@ -44,6 +51,16 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   }
   const mobile=await account('android',true);
   assert.equal((await api('mobile/context',undefined,'',mobile)).r.status,200);
+  const explicit=await fetch(origin+'/index.php?nc_route=%2Fapi%2Fmobile%2Fcontext',{headers:mobile});
+  assert.equal(explicit.status,200);
+  assert.ok((await explicit.json()).userId);
+  const closure=origin+'/index.php?nc_route=%2Fapi%2Faccount%2Fclosure';
+  const requestClosure=(body,headers)=>fetch(closure,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await requestClosure({}, {...mobile,Authorization:''})).status,401);
+  assert.equal((await requestClosure({},mobile)).status,400);
+  assert.equal((await requestClosure({confirmation:'EXCLUIR',currentPassword:'incorreta'},mobile)).status,401);
+  assert.equal((await fetch(origin+'/index.php?nc_route=%2Fprofile')).status,404);
+  assert.equal((await fetch(origin+'/index.php?nc_route%5B%5D=%2Fhealthz')).status,404);
   assert.equal((await api('mobile/context',undefined,'',{Authorization:mobile.Authorization})).r.status,401);
   assert.equal((await api('mobile/context',undefined,'',{...mobile,'X-Fixture-TLS':'0'})).r.status,403);
   const preflight=await fetch(origin+'/api/mobile/context',{method:'OPTIONS',headers:{Origin:'https://localhost','X-Fixture-TLS':'1'}});

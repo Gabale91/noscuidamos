@@ -28,7 +28,7 @@ const app=(await readFile(assets+'/app.html','utf8'))
     '<p id="mobile-loading" role="status">Carregando seus dados…</p><script src="/clinical-entry.js"></script>');
 await writeFile(out+'/app.html',app);
 
-for(const file of ['auth-ui.js','clinical-app.js','notifications-ui.js','php-bootstrap.js','clinical-events.js','php-files.js','patient-admin-ui.js']){
+for(const file of ['legal-documents.js','auth-ui.js','clinical-app.js','notifications-ui.js','php-bootstrap.js','clinical-events.js','php-files.js','patient-admin-ui.js']){
   let js=await readFile(assets+'/'+file,'utf8');
   js=js.replaceAll("'/app'","'/app.html'").replaceAll("'/profile'","'/profile.html'");
   if(file==='auth-ui.js')js=js

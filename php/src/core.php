@@ -43,9 +43,9 @@ final class App {
         return $u;
     }
     public function hasConsent(string $user): bool { return (bool)$this->one('SELECT id FROM cf_consents WHERE user_id=? AND terms=? AND privacy=?',[$user,$this->config['terms_version'],$this->config['privacy_version']]); }
-    public function consent(string $user, array $b): void {
+    public function consent(string $user, array $b, ?int $acceptedAt=null): void {
         if(($b['accepted']??false)!==true||($b['termsVersion']??'')!==$this->config['terms_version']||($b['privacyVersion']??'')!==$this->config['privacy_version'])fail('Leia e aceite as versões atuais dos Termos de Uso e da Política de Privacidade.');
-        if(!$this->hasConsent($user))$this->q('INSERT INTO cf_consents VALUES(?,?,?,?,?)',[uid(),$user,$b['termsVersion'],$b['privacyVersion'],nowms()]);
+        if(!$this->hasConsent($user))$this->q('INSERT INTO cf_consents VALUES(?,?,?,?,?)',[uid(),$user,$b['termsVersion'],$b['privacyVersion'],$acceptedAt??nowms()]);
     }
     public function cookie(string $value, int $age=0): void { if(!$this->mobile)setcookie('cf_session',$value,['expires'=>$age>0?time()+$age:($age<0?1:0),'path'=>'/','secure'=>str_starts_with($this->config['origin'],'https://'),'httponly'=>true,'samesite'=>'Lax']); }
     public function start(string $user, bool $remember): void { $t=secret();$ttl=$remember&&!$this->mobile?2592000:28800;$this->q('INSERT INTO cf_sessions(token,user_id,expires) VALUES(?,?,?)',[digest(($this->mobile?'android:':'').$t),$user,nowms()+$ttl*1000]);if($this->mobile)$this->mobileSession=$t;else $this->cookie($t,$remember?$ttl:0); }

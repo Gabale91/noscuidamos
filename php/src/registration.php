@@ -21,6 +21,7 @@ final class Registration {
             $this->checkConsent($body);
             $payload = array_intersect_key($body, array_flip(['accepted','termsVersion','privacyVersion','patientCode']));
             $payload['name'] = $name;
+            $payload['acceptedAt'] = $now;
             $payload['passwordHash'] = secure_password_hash($password);
             $token = secret();
             $this->issue($token, $email, $payload, null);
@@ -60,7 +61,7 @@ final class Registration {
                 throw $failure;
             }
             $app->q('INSERT INTO cf_sync VALUES(?,0)',[$id]);
-            $app->consent($id,$payload);
+            $app->consent($id,$payload,$payload['acceptedAt']??null);
             if (!empty($payload['patientCode'])) $app->join($id,(string)$payload['patientCode']);
             $app->audit('account_created',$id);
             $app->q('UPDATE cf_pending_registrations SET payload=NULL, code_hash=NULL WHERE token=?',[$key]);

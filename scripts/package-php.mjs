@@ -1,5 +1,6 @@
 import {mkdir,copyFile,cp,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createHash} from 'node:crypto';
 import {compileClinicalHandlers,clinicalEventCode} from './clinical-page.mjs';
 const out=resolve('release/locaweb-php');
 // A fixed, workspace-owned staging directory, never an FTP destination.
@@ -17,11 +18,20 @@ await copyFile('php/migrate.php',out+'/private/migrate.php');
 for(const [source,target] of [['server/login.html','login.html'],['server/auth-ui.js','auth-ui.js'],['server/notifications-ui.js','notifications-ui.js'],['prototypes/cuidado-em-familia-teste-fluxo-corrigido.html','app.html']])await copyFile(source,out+'/private/assets/'+target);
 // index lives in /web/noscuidamos; the private directory is a sibling OUTSIDE /web.
 const {readFile}=await import('node:fs/promises');let index=await readFile(out+'/public/index.php','utf8');
+const legal={};
+for(const [type,title] of [['terms','Termos de Uso'],['privacy','Política de Privacidade']]){
+  const source=(await readFile(out+'/private/assets/legal/'+type+'.md','utf8')).replace(/\r\n/g,'\n');
+  legal[type]={title,version:createHash('sha256').update(source).digest('hex'),
+    text:source.replace(/^#{1,6} +/gm,'').replaceAll('**','').replaceAll('\\@','@')};
+}
+await writeFile(out+'/private/assets/legal-documents.js','window.ncLegalDocuments='+JSON.stringify(legal)+';\n');
+const privacy=legal.privacy.text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+await writeFile(out+'/public/privacidade.html','<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Política de Privacidade — Nós Cuidamos</title><main><h1>Política de Privacidade</h1><p>Incorporada ao aplicativo em 11/11/2026.</p><div style="white-space:pre-wrap">'+privacy+'</div></main></html>');
 for(const name of ['login.html','app.html']){
   const path=out+'/private/assets/'+name;
   const html=await readFile(path,'utf8');
   let result=html.replace(/<head>/i,'<head><link rel="icon" href="/icon.svg" type="image/svg+xml">');
-  if(name==='login.html')result=result.replace('</body>','<script src="/google-link.js"></script></body>');
+  if(name==='login.html')result=result.replace('<script src="/auth-ui.js">','<script src="/legal-documents.js"></script><script src="/auth-ui.js">').replace('</body>','<script src="/google-link.js"></script></body>');
   await writeFile(path,result);
 }
 index=index.replace("getenv('CUIDADO_PRIVATE')?:dirname(__DIR__)","getenv('CUIDADO_PRIVATE')?:dirname(__DIR__, 2).'/cuidado-private'");

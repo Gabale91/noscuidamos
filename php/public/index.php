@@ -16,6 +16,18 @@ require $private.'/src/core.php';
 require $private.'/src/mail.php';
 require $private.'/src/registration.php';
 try {
+    $method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
+    if($method==='GET'&&$path==='/privacidade.html'){
+        if(!is_file(__DIR__.'/privacidade.html'))fail('Documento indisponível.',404);
+        header('Content-Type: text/html; charset=utf-8');
+        readfile(__DIR__.'/privacidade.html');exit;
+    }
+    // Explicit PHP entry point for hosts that redirect extensionless URLs before IIS Rewrite.
+    if($path==='/index.php' && array_key_exists('nc_route',$_GET)){
+        $route=$_GET['nc_route'];
+        if(!is_string($route)||!preg_match('~^/(?:healthz|api/[a-z][a-z-]*(?:/[a-z][a-z-]*)*)$~D',$route))fail('Rota inválida.',404);
+        $path=$route==='/api/account/closure'?'/api/delete-account':$route;
+    }
     $configFile=getenv('CUIDADO_CONFIG')?:$private.'/cuidado-config.php';
     if(!is_file($configFile))fail('Instalação pendente: configure o arquivo privado do aplicativo.',503);
     $cfgPath=realpath($configFile);
@@ -27,7 +39,13 @@ try {
     }
     $config=require $configFile;
     if(!is_array($config)||!filter_var($config['origin']??'',FILTER_VALIDATE_URL))fail('Configuração inválida.',503);
-    $method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
+    foreach(['terms','privacy'] as $document){
+        $file=$private.'/assets/legal/'.$document.'.md';
+        if(!is_file($file))fail('Documento obrigatório indisponível.',503);
+        $content=file_get_contents($file);
+        if($content===false)fail('Documento obrigatório indisponível.',503);
+        $config[$document.'_version']=hash('sha256',str_replace("\r\n","\n",$content));
+    }
     $mobileOrigin=str_starts_with($config['origin'],'https://') && str_starts_with($path,'/api/') && ($_SERVER['HTTP_ORIGIN']??'')==='https://localhost';
     if($mobileOrigin){
         if(($_SERVER['HTTPS']??'')!=='on')fail('Use uma conexão HTTPS.',403);
@@ -98,7 +116,7 @@ try {
         readfile($assets.'/login.html');
         exit;
     }
-    $scripts=['/google-link.js'=>'google-link.js','/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js','/clinical-app.js'=>'clinical-app.js','/clinical-events.js'=>'clinical-events.js','/patient-admin-ui.js'=>'patient-admin-ui.js'];
+    $scripts=['/legal-documents.js'=>'legal-documents.js','/google-link.js'=>'google-link.js','/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js','/clinical-app.js'=>'clinical-app.js','/clinical-events.js'=>'clinical-events.js','/patient-admin-ui.js'=>'patient-admin-ui.js'];
     if(isset($scripts[$path])){header('Content-Type: text/javascript; charset=utf-8');readfile($assets.'/'.$scripts[$path]);exit;}
     fail('Página não encontrada.',404);
 }catch(HttpError $x){json_out(['error'=>$x->getMessage()],$x->status);}
