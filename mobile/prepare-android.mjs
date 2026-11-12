@@ -12,4 +12,10 @@ for(const name of ['ic_launcher','ic_launcher_round']){await writeFile(main+'/re
 await writeFile(main+'/res/drawable/nc_icon.xml',icon);
 await writeFile(main+'/res/values/nc_colors.xml','<resources><color name="nc_green">#087b67</color></resources>');
 let manifest=await readFile(main+'/AndroidManifest.xml','utf8');if(!manifest.includes('android:usesCleartextTraffic='))manifest=manifest.replace('<application','<application android:usesCleartextTraffic="false"');await writeFile(main+'/AndroidManifest.xml',manifest);
-console.log('Nome, ícone, impressão PDF e salvamento de anexos preparados.');
+const gradlePath=root+'/android/app/build.gradle';
+const gradle=await readFile(gradlePath,'utf8');
+const buildNumber=Number(process.env.GITHUB_RUN_NUMBER||1);
+if(!Number.isSafeInteger(buildNumber)||buildNumber<1||buildNumber>2099999999)throw new Error('Número de compilação inválido.');
+if(!/\bversionCode\s+\d+/.test(gradle)||!/\bversionName\s+"[^"]+"/.test(gradle))throw new Error('Versão padrão do Android não encontrada.');
+await writeFile(gradlePath,gradle.replace(/\bversionCode\s+\d+/, 'versionCode '+(buildNumber+1)).replace(/\bversionName\s+"[^"]+"/,'versionName "0.1.'+buildNumber+'"'));
+console.log('Nome, ícone, versão, impressão PDF e salvamento de anexos preparados.');
