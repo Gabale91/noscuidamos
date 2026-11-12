@@ -6,6 +6,8 @@ on:
     paths:
       - 'mobile/**'
       - 'prototypes/**'
+      - 'php/**'
+      - 'server/auth-ui.js'
       - '.github/workflows/android-apk.yml'
 permissions:
   contents: read

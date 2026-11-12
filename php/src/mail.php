@@ -15,7 +15,18 @@ function smtp_send(array $c,string $to,string $subject,string $text,bool $verify
         $write('AUTH LOGIN',[334]);$write(base64_encode($c['user']),[334]);$write(base64_encode($c['password']),[235]);
         if($verifyOnly){fwrite($s,"QUIT\r\n");return;}
         $write('MAIL FROM:<'.$c['from'].'>',[250]);$write('RCPT TO:<'.$to.'>',[250,251]);$write('DATA',[354]);
-        $message='From: Nos Cuidamos <'.$c['from'].">\r\nTo: <".$to.">\r\nSubject: =?UTF-8?B?".base64_encode($subject)."?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\nDate: ".date(DATE_RFC2822)."\r\nMessage-ID: <".secret().'@noscuidamos.gabale.com.br'.">\r\n\r\n".chunk_split(base64_encode($text),76,"\r\n");
+        $boundary='nc-'.secret();
+        $html='<div style="font-family:Arial,sans-serif;color:#123533">'
+            .'<h1 style="color:#087665">Nós Cuidamos</h1><h2>'.e($subject).'</h2><p>'
+            .nl2br(e($text)).'</p></div>';
+        $message='From: Nos Cuidamos <'.$c['from'].">\r\nTo: <".$to.">\r\nSubject: =?UTF-8?B?"
+            .base64_encode($subject)."?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"".$boundary."\"\r\nDate: "
+            .date(DATE_RFC2822)."\r\nMessage-ID: <".secret()."@noscuidamos.gabale.com.br>\r\n\r\n";
+        foreach (['plain'=>$text,'html'=>$html] as $format=>$content) {
+            $message.='--'.$boundary."\r\nContent-Type: text/$format; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+                .chunk_split(base64_encode($content),76,"\r\n");
+        }
+        $message.='--'.$boundary."--\r\n";
         $write($message."\r\n.",[250]);fwrite($s,"QUIT\r\n");
     }finally{fclose($s);}
 }

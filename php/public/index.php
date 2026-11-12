@@ -1,17 +1,30 @@
 <?php
 declare(strict_types=1);
 ini_set('display_errors','0');
+ini_set('zend.exception_ignore_args','1');
 header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: no-referrer');header('X-Frame-Options: DENY');
+header("Content-Security-Policy: object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+header('Permissions-Policy: geolocation=(), microphone=()');
+if(($_SERVER['HTTPS']??'')==='on')header('Strict-Transport-Security: max-age=31536000');
+if(($_SERVER['REQUEST_METHOD']??'')==='GET' && parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH)==='/icon.svg'){
+    header('Content-Type: image/svg+xml');readfile(__DIR__.'/icon.svg');exit;
+}
 $private=getenv('CUIDADO_PRIVATE')?:dirname(__DIR__);
 require $private.'/src/patients.php';
 require $private.'/src/oauth.php';
 require $private.'/src/core.php';
 require $private.'/src/mail.php';
+require $private.'/src/registration.php';
 try {
     $configFile=getenv('CUIDADO_CONFIG')?:$private.'/cuidado-config.php';
     if(!is_file($configFile))fail('Instalação pendente: configure o arquivo privado do aplicativo.',503);
-    $web=realpath(__DIR__);$cfgPath=realpath($configFile);
-    if(!$cfgPath||str_starts_with(strtolower($cfgPath),strtolower($web).DIRECTORY_SEPARATOR))fail('A configuração deve ficar fora da pasta pública.',503);
+    $cfgPath=realpath($configFile);
+    $publicRoots=[realpath(__DIR__),realpath($_SERVER['DOCUMENT_ROOT']??__DIR__)];
+    foreach($publicRoots as $web){
+        if(!$web||!$cfgPath||str_starts_with(strtolower($cfgPath),strtolower(rtrim($web,'/\\')).DIRECTORY_SEPARATOR)){
+            fail('A configuração deve ficar fora da pasta pública.',503);
+        }
+    }
     $config=require $configFile;
     if(!is_array($config)||!filter_var($config['origin']??'',FILTER_VALIDATE_URL))fail('Configuração inválida.',503);
     $app=new App($config);$method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
@@ -34,13 +47,13 @@ try {
             if($action==='files/list'){$p=$app->patient($u['id'],(string)($_GET['patient']??''));json_out(['files'=>$app->q('SELECT id,record_id,kind,name,mime,size,created_at FROM cf_files WHERE patient=?',[$p['id']])->fetchAll()]);}
             fail('Operação inválida.',404);
         }
-        json_out($app->auth($action,$body,$method),$action==='register'?201:200);
+        json_out($app->auth($action,$body,$method),match($action){'register','register/resend'=>202,'register/confirm'=>201,default=>200});
     }
     if($method!=='GET')fail('Método inválido.',405);
     if($path==='/auth/google/callback')$app->googleCallback();
     if($path==='/healthz'){$app->q('SELECT 1');json_out(['status'=>'ok']);}
     if(str_starts_with($path,'/convite/')){
-        $link=$app->one('SELECT l.code_hash,p.code FROM cf_links l JOIN cf_patients p ON p.id=l.patient WHERE l.id=?',[substr($path,9)]);
+        $link=$app->one('SELECT l.code_hash,p.code FROM cf_links l JOIN cf_patients p ON p.id=l.patient JOIN cf_invite_limits i ON i.patient=p.id WHERE l.id=? AND i.expires>? AND i.used_at IS NULL',[substr($path,9),nowms()]);
         if(!$link)fail('Convite indisponível.',404);$code=implode('-',str_split($link['code'],4));if(!hash_equals($link['code_hash'],digest($code)))fail('Convite substituído.',404);
         $store=$config['play_store_url']??'';if($store&&!preg_match('#^https://play\.google\.com/store/apps/details\?id=[A-Za-z0-9_.]+$#',$store))fail('Endereço da loja inválido.',503);
         if($store&&str_contains($_SERVER['HTTP_USER_AGENT']??'','Android'))redirect_to($store);
@@ -50,18 +63,22 @@ try {
     if($path==='/app'){
         try{$u=$app->user();}catch(HttpError){redirect_to('/');}
         $html=file_get_contents($assets.'/app.html');
-        $html=str_replace("const KEY='cuidado-familia-demo-v3-clean';","const KEY='cuidado-familia-account-".$u['id']."';",$html);
-        $html=str_replace("indexedDB.open('cuidado-familia-files',1)","indexedDB.open('cuidado-familia-files-".$u['id']."',1)",$html);
-        $html=preg_replace('#render\(\);\s*</script>#',"userProfile=()=>{location.assign('/profile');return '<main>Abrindo perfil…</main>'};window.addEventListener('pageshow',()=>fetch('/api/me').then(r=>r.json()).then(s=>{if(!s.user||s.needsConsent)location.replace('/')}));render();\n</script>",$html);
+        if($html===false||!str_contains($html,'<!-- NC_CONTEXT -->'))fail('A área clínica precisa do pacote de publicação atualizado.',503);
         $saved=$app->notifications($u['id'],'owned-patients',[]);
+        $saved['userId']=$u['id'];
         $saved['revision']=(int)($app->one('SELECT revision FROM cf_sync WHERE user_id=?',[$u['id']])['revision']??0);
-        $boot='const phpSaved='.json_encode($saved,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR).';';
-        $boot.=file_get_contents($assets.'/php-bootstrap.js');
-        $html=str_replace('</body>','<script>'.$boot.'</script><script src="/notifications-ui.js"></script><script src="/php-files.js"></script></body>',$html);
+        $context=json_encode($saved,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR);
+        $html=str_replace('<!-- NC_CONTEXT -->','<script type="application/json" id="phpSaved">'.$context.'</script>',$html);
+        header("Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; connect-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
         header('Content-Type: text/html; charset=utf-8');echo $html;exit;
     }
-    if($path==='/'||$path==='/profile'){header('Content-Type: text/html; charset=utf-8');readfile($assets.'/login.html');exit;}
-    $scripts=['/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js'];
+    if($path==='/'||$path==='/profile'){
+        header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+        header('Content-Type: text/html; charset=utf-8');
+        readfile($assets.'/login.html');
+        exit;
+    }
+    $scripts=['/google-link.js'=>'google-link.js','/auth-ui.js'=>'auth-ui.js','/notifications-ui.js'=>'notifications-ui.js','/php-bootstrap.js'=>'php-bootstrap.js','/php-files.js'=>'php-files.js','/clinical-app.js'=>'clinical-app.js','/clinical-events.js'=>'clinical-events.js'];
     if(isset($scripts[$path])){header('Content-Type: text/javascript; charset=utf-8');readfile($assets.'/'.$scripts[$path]);exit;}
     fail('Página não encontrada.',404);
 }catch(HttpError $x){json_out(['error'=>$x->getMessage()],$x->status);}

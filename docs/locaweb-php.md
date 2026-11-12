@@ -8,7 +8,7 @@ Execute `node scripts/package-php.mjs`. O resultado é `release/locaweb-php/`, s
 
 Crie `/cuidado-private` como pasta irmã de `/web`, fora da raiz pública. Coloque nela o conteúdo de `private/`, incluindo `src` e `assets`. O index gerado resolve esse caminho automaticamente: dois níveis acima de `/web/noscuidamos`. Se o caminho físico da hospedagem diferir, ajuste o caminho privado no index. Verifique no FTP/painel o diretório real; uma pasta chamada private dentro da área pública não é suficiente.
 
-Em `/cuidado-private`, copie `config.example.php` para `cuidado-config.php` e preencha host, banco, usuário e senha do MySQL já incluído. Configure o remetente SMTP existente e sua senha sem enviá-la pelo chat. O nome do banco é fornecido pela Locaweb; a aplicação não cria nem contrata banco. Importe `schema.sql` pelo gerenciador MySQL. Requer InnoDB, utf8mb4 e PDO MySQL. Não publicar instalador web.
+Em `/cuidado-private`, copie `config.example.php` para `cuidado-config.php` e preencha host, banco, usuário e senha do MySQL já incluído. Configure o remetente SMTP existente e sua senha sem enviá-la pelo chat. O nome do banco é fornecido pela Locaweb; a aplicação não cria nem contrata banco. Execute o migrador CLI privado conforme PUBLICACAO.md antes de liberar o cadastro. Requer InnoDB, utf8mb4 e PDO MySQL. Não publicar instalador web.
 
 Crie `/cuidado-private/files`, gravável pelo usuário PHP, e configure storage com o CAMINHO FÍSICO ABSOLUTO dessa pasta. Anexos recebem nomes aleatórios e são servidos somente por `/api/files/download`, após autenticação e autorização sobre o paciente. O código recusa armazenamento dentro de DOCUMENT_ROOT. Se não houver pasta privada fora da área pública, uploads permanecem bloqueados; não remover essa proteção.
 

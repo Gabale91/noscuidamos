@@ -12,13 +12,28 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
  const php=process.env.PHP_TEST_BIN||'php',args=process.env.PHP_TEST_EXT?['-d','extension_dir='+process.env.PHP_TEST_EXT,'-d','extension=pdo_mysql','-d','extension=fileinfo','-d','extension=openssl']:[];
  const tmp=resolve('data/php-http');await mkdir(tmp,{recursive:true});await mkdir(tmp+'/files',{recursive:true});
  const port=await new Promise(r=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});const origin='http://127.0.0.1:'+port;
- const config={dsn:process.env.PHP_TEST_DSN,db_user:process.env.PHP_TEST_USER||'root',db_password:process.env.PHP_TEST_PASSWORD||'',origin,storage:tmp+'/files',terms_version:'test-1',privacy_version:'test-1',smtp:{password:''}};
- await writeFile(tmp+'/config.php',`<?php return json_decode(base64_decode('${Buffer.from(JSON.stringify(config)).toString('base64')}'),true);`);
+ const config={dsn:process.env.PHP_TEST_DSN,db_user:process.env.PHP_TEST_USER||'root',db_password:process.env.PHP_TEST_PASSWORD||'',origin,storage:tmp+'/files',terms_version:'test-1',privacy_version:'test-1',smtp:{password:'fixture'}};
+ await writeFile(tmp+'/config.php',`<?php $config=json_decode(base64_decode('${Buffer.from(JSON.stringify(config)).toString('base64')}'),true); $config['mail_transport']=static function($smtp,$to,$subject,$text){file_put_contents(__DIR__.'/message.txt',$text);}; return $config;`);
  const child=spawn(php,[...args,'-d','upload_max_filesize=10M','-d','post_max_size=12M','-S','127.0.0.1:'+port,'-t',resolve('release/locaweb-php/public'),resolve('release/locaweb-php/public/index.php')],{env:{...process.env,CUIDADO_PRIVATE:resolve('release/locaweb-php/private'),CUIDADO_CONFIG:tmp+'/config.php'},stdio:['ignore','pipe','pipe']});let logs='';child.stderr.on('data',d=>logs+=d);
  const users=[];const api=async(path,body,cookie='',headers={})=>{const r=await fetch(origin+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{Origin:origin,...(body instanceof FormData?{}:{'Content-Type':'application/json'})}),Cookie:cookie,...headers},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});return {r,data:await r.json()};};
  try{
   for(let i=0;i<80;i++){try{const r=await fetch(origin+'/healthz');if(r.ok)break;if(i===79)throw Error(await r.text());}catch(e){if(i===79)throw Error(String(e)+' '+logs);}await new Promise(r=>setTimeout(r,100));}
-  async function account(prefix){const email=prefix+'-'+crypto.randomUUID()+'@example.test';const {r,data}=await api('register',{name:prefix,email,password:'Ab1',confirmPassword:'Ab1',accepted:true,termsVersion:'test-1',privacyVersion:'test-1'});assert.equal(r.status,201,JSON.stringify(data));const cookie=r.headers.get('set-cookie').split(';')[0];users.push(cookie);return cookie;}
+  async function account(prefix){
+    const email=prefix+'-'+crypto.randomUUID()+'@example.test', password='Teste1!';
+    const {r,data}=await api('register',{name:prefix,email,password,confirmPassword:password,accepted:true,termsVersion:'test-1',privacyVersion:'test-1'});
+    assert.equal(r.status,202,JSON.stringify(data));
+    assert.equal(r.headers.get('set-cookie'),null);
+    assert.equal((await api('login',{email,password})).r.status,401);
+    const code=(await readFile(tmp+'/message.txt','utf8')).match(/\b[A-Z0-9]{6}\b/)[0];
+    const verified=await api('register/confirm',{registrationToken:data.registrationToken,code});
+    assert.equal(verified.r.status,201,JSON.stringify(verified.data));
+    assert.equal(verified.r.headers.get('set-cookie'),null);
+    const login=await api('login',{email,password});
+    assert.equal(login.r.status,200,JSON.stringify(login.data));
+    const cookie=login.r.headers.get('set-cookie').split(';')[0];
+    users.push(cookie);
+    return cookie;
+  }
   const owner=await account('owner'),relative=await account('relative'),outsider=await account('outsider');
   assert.equal((await api('logout',{},owner,{Origin:'https://evil.example'})).r.status,403);
   assert.equal((await fetch(origin+'/api/logout',{headers:{Cookie:owner}})).status,405);
@@ -27,9 +42,15 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   const state=(await api('notifications/state',undefined,owner)).data,patientId=state.patients[0].id;
   const code=(await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,owner)).data.code;
   assert.equal((await api('notifications/join-patient',{code},relative)).r.status,200);
+  assert.equal((await api('notifications/join-patient',{code},outsider)).r.status,404);
+  assert.equal((await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
+  assert.equal((await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,relative)).r.status,403);
+  assert.equal((await api('notifications/revoke',{patient:patientId,userId:(await api('me',undefined,relative)).data.user.id},outsider)).r.status,403);
   const pdf=Buffer.concat([Buffer.from('%PDF-1.4\n'),Buffer.alloc(2_000_000,32),Buffer.from('\n%%EOF')]);
   const upload=async(blob,name,cookie=owner)=>{const f=new FormData();f.set('patient',patientId);f.set('record','a1');f.set('kind','result');f.set('file',new Blob([blob]),name);return api('files/upload',f,cookie);};
   const file=await upload(pdf,'resultado.pdf');assert.equal(file.r.status,201,JSON.stringify(file.data));assert.equal(file.data.size,pdf.length);
+  assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
+  assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,relative)).data.files.length,1);
   assert.equal((await upload(Buffer.from('<?php echo 1;'),'arquivo.pdf')).r.status,400);
   assert.equal((await upload(pdf,'resultado.pdf',relative)).r.status,403);
   assert.equal((await upload(Buffer.alloc(10_000_001),'grande.pdf')).r.status,400);
@@ -42,6 +63,14 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   for(const asset of ['auth-ui.js','notifications-ui.js','php-files.js'])assert.equal((await fetch(origin+'/'+asset)).status,200);
   assert.equal((await fetch(origin+'/../private/config.example.php')).status,404);
   assert.equal((await fetch(origin+'/schema.sql')).status,404);
+  assert.equal((await fetch(origin+'/migrate.php')).status,404);
+  const loginPage=await fetch(origin+'/');
+  assert.match(loginPage.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+  assert.match(loginPage.headers.get('content-security-policy'),/script-src 'self';/);
+  assert.match(await loginPage.text(),/rel="icon" href="\/icon\.svg"/);
+  const icon=await fetch(origin+'/icon.svg');
+  assert.equal(icon.status,200);
+  assert.match(icon.headers.get('content-type'),/^image\/svg\+xml/);
   assert.equal((await api('config')).data.googleConfigured,false);
  } finally {
   for(const cookie of users)try{await api('delete-account',{confirmation:'EXCLUIR',currentPassword:'Ab1'},cookie);}catch{}

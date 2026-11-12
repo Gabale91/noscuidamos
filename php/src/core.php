@@ -10,7 +10,14 @@ function secret(): string { return bin2hex(random_bytes(32)); }
 function nowms(): int { return (int) floor(microtime(true) * 1000); }
 function digest(string $s): string { return hash('sha256', $s); }
 function email_value(mixed $s): string { return strtolower(trim(is_string($s) ? $s : '')); }
-function valid_password(mixed $s): bool { return is_string($s) && strlen($s)>=3 && strlen($s)<=128 && preg_match('/[A-Z]/', $s) && preg_match('/[0-9]/', $s); }
+function valid_password(mixed $s): bool {
+    return is_string($s) && strlen($s)<=72 && !str_contains($s,"\0") &&
+        preg_match('/^.{6,}$/usD',$s) && preg_match('/[A-Z]/',$s) && preg_match('/[a-z]/',$s) &&
+        preg_match('/[0-9]/',$s) && preg_match('/[^\p{L}\p{N}\s]/u',$s);
+}
+function secure_password_hash(string $password): string {
+    return password_hash($password, defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT);
+}
 function e(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 function json_out(array $data, int $status=200): never { http_response_code($status); header('Content-Type: application/json; charset=utf-8'); echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR); exit; }
 function redirect_to(string $path): never { header('Location: '.$path, true, 302); exit; }
@@ -47,37 +54,31 @@ final class App {
     }
     public function challenge(string $user,string $kind,?string $payload=null): string { $t=secret();$this->q('DELETE FROM cf_challenges WHERE user_id=? AND kind=?',[$user,$kind]);$this->q('INSERT INTO cf_challenges VALUES(?,?,?,?,?)',[digest($t),$user,$kind,$payload,nowms()+1800000]);return $t; }
     public function mailConfigured(): bool { return !empty($this->config['smtp']['password']); }
-    public function send(string $to,string $subject,string $text): void { if(!$this->mailConfigured())fail('Envio de e-mail ainda não configurado.',503); smtp_send($this->config['smtp'],$to,$subject,$text); }
+    public function send(string $to,string $subject,string $text): void {
+        if(!$this->mailConfigured())fail('Envio de e-mail ainda não configurado.',503);
+        $transport = $this->config['mail_transport'] ?? 'smtp_send';
+        $transport($this->config['smtp'],$to,$subject,$text);
+    }
     public function auth(string $path,array $b,string $method): array {
-        if($path==='config')return ['termsVersion'=>$this->config['terms_version'],'privacyVersion'=>$this->config['privacy_version'],'googleConfigured'=>$this->googleConfigured(),'mailConfigured'=>$this->mailConfigured(),'build'=>'php-8.3-mysql','features'=>['patientCodes','inviteEmail','smartLinks','privateFiles']];
+        if($path==='config')return ['termsVersion'=>$this->config['terms_version'],'privacyVersion'=>$this->config['privacy_version'],'googleConfigured'=>$this->googleConfigured(),'mailConfigured'=>$this->mailConfigured(),'build'=>'php-8.3-mysql','features'=>['patientCodes','inviteEmail','smartLinks','privateFiles','emailRegistration']];
         if($path==='me'){try{$u=$this->user(false);return ['user'=>array_intersect_key($u,array_flip(['id','name','email'])),'needsConsent'=>!$this->hasConsent($u['id'])];}catch(HttpError){return ['user'=>null];}}
-        if($path==='register'){
-            $email=email_value($b['email']??'');$name=trim((string)($b['name']??''));
-            if(!$name||strlen($name)>150||!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>254)fail('Informe nome completo e e-mail válido.');
-            if(!valid_password($b['password']??null)||($b['password']??null)!==($b['confirmPassword']??null))fail('Informe senhas iguais, com 3 a 128 caracteres, uma letra maiúscula e um número.');
-            $id=uid();$this->tx(function()use($id,$name,$email,$b){
-                if($this->one('SELECT id FROM cf_users WHERE email=?',[$email]))fail('Este e-mail já possui uma conta.',409);
-                $this->q('INSERT INTO cf_users(id,name,email,password) VALUES(?,?,?,?)',[$id,$name,$email,password_hash($b['password'],PASSWORD_DEFAULT)]);
-                $this->q('INSERT INTO cf_sync VALUES(?,0)',[$id]);$this->consent($id,$b);
-                if(!empty($b['patientCode']))$this->join($id,(string)$b['patientCode']);$this->audit('account_created',$id);
-            });$this->start($id,($b['remember']??false)===true);return ['ok'=>true];
-        }
+        if(in_array($path,['register','register/confirm','register/resend'],true))return (new Registration($this))->handle($path,$b);
         if($path==='login'){
             $u=$this->one('SELECT * FROM cf_users WHERE email=?',[email_value($b['email']??'')]);
             $password=$b['password']??'';
             $valid=is_string($password)&&strlen($password)<=128&&password_verify($password,$u['password']??'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi');
-            if(!$valid||!$u)fail('E-mail ou senha incorretos. Verifique os dados informados e tente novamente.',401);
+            if(!$valid||!$u||!$u['password'])fail('E-mail ou senha incorretos. Verifique os dados informados e tente novamente.',401);
             $this->start($u['id'],($b['remember']??false)===true);$this->audit('login',$u['id']);return ['ok'=>true,'needsConsent'=>!$this->hasConsent($u['id'])];
         }
         if($path==='forgot'){
             $email=email_value($b['email']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Informe um e-mail válido.');if(!$this->mailConfigured())fail('Envio de e-mail ainda não configurado.',503);
             $u=$this->one('SELECT id FROM cf_users WHERE email=? AND password IS NOT NULL',[$email]);
-            if($u){$t=$this->challenge($u['id'],'reset');try{$this->send($email,'Redefinir senha',$this->config['origin'].'/?reset='.$t);}catch(Throwable $e){$this->q('DELETE FROM cf_challenges WHERE token=?',[digest($t)]);throw $e;}}
+            if($u){$t=$this->challenge($u['id'],'reset');try{$this->send($email,'Redefinir senha',$this->config['origin'].'/?reset='.$t);}catch(Throwable $e){$this->q('DELETE FROM cf_challenges WHERE token=?',[digest($t)]);}}
             return ['message'=>'Se houver uma conta com senha para este e-mail, você receberá as instruções de redefinição.'];
         }
         if($path==='reset'){
             if(!valid_password($b['password']??null)||($b['password']??null)!==($b['confirmPassword']??null))fail('Informe senhas válidas e iguais.');
-            $this->tx(function()use($b){$c=$this->one("SELECT * FROM cf_challenges WHERE token=? AND kind='reset' AND expires>? FOR UPDATE",[digest((string)($b['token']??'')),nowms()]);if(!$c)fail('Link inválido ou expirado.');$this->q('UPDATE cf_users SET password=? WHERE id=?',[password_hash($b['password'],PASSWORD_DEFAULT),$c['user_id']]);$this->q('DELETE FROM cf_sessions WHERE user_id=?',[$c['user_id']]);$this->q("DELETE FROM cf_challenges WHERE user_id=? AND kind='reset'",[$c['user_id']]);$this->audit('password_reset',$c['user_id']);});return ['ok'=>true];
+            $this->tx(function()use($b){$c=$this->one("SELECT * FROM cf_challenges WHERE token=? AND kind='reset' AND expires>? FOR UPDATE",[digest((string)($b['token']??'')),nowms()]);if(!$c)fail('Link inválido ou expirado.');$this->q('UPDATE cf_users SET password=? WHERE id=?',[secure_password_hash($b['password']),$c['user_id']]);$this->q('DELETE FROM cf_sessions WHERE user_id=?',[$c['user_id']]);$this->q("DELETE FROM cf_challenges WHERE user_id=? AND kind='reset'",[$c['user_id']]);$this->audit('password_reset',$c['user_id']);});return ['ok'=>true];
         }
         if($path==='google/start')return $this->googleStart($b);
         $u=$this->user(!in_array($path,['consent','logout','email/confirm','reauth/request','reauth/confirm'],true));$id=$u['id'];
@@ -100,7 +101,7 @@ final class App {
             if(!$u['password'])fail('Esta conta usa Google. Gerencie a senha na conta Google.');
             if(!is_string($b['currentPassword']??null)||!password_verify($b['currentPassword'],$u['password']))fail('Senha atual incorreta.',401);
             if(!valid_password($b['password']??null)||($b['password']??null)!==($b['confirmPassword']??null))fail('Informe senhas válidas e iguais.');
-            $this->tx(function()use($b,$id){$this->q('UPDATE cf_users SET password=? WHERE id=?',[password_hash($b['password'],PASSWORD_DEFAULT),$id]);$this->q('DELETE FROM cf_sessions WHERE user_id=?',[$id]);$this->q("DELETE FROM cf_challenges WHERE user_id=? AND kind='reset'",[$id]);$this->audit('password_changed',$id);});$this->cookie('',-1);return ['ok'=>true];
+            $this->tx(function()use($b,$id){$this->q('UPDATE cf_users SET password=? WHERE id=?',[secure_password_hash($b['password']),$id]);$this->q('DELETE FROM cf_sessions WHERE user_id=?',[$id]);$this->q("DELETE FROM cf_challenges WHERE user_id=? AND kind='reset'",[$id]);$this->audit('password_changed',$id);});$this->cookie('',-1);return ['ok'=>true];
         }
         if($path==='delete-account'){
             if(($b['confirmation']??'')!=='EXCLUIR')fail('Digite EXCLUIR para confirmar.');
