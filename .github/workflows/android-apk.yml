@@ -2,7 +2,7 @@ name: Gerar APK Android de testes
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/homologacao-locaweb]
     paths:
       - 'mobile/**'
       - 'prototypes/**'
