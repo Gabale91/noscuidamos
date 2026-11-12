@@ -63,7 +63,7 @@ final class App {
         $transport($this->config['smtp'],$to,$subject,$text);
     }
     public function auth(string $path,array $b,string $method): array {
-        if($path==='config')return ['termsVersion'=>$this->config['terms_version'],'privacyVersion'=>$this->config['privacy_version'],'googleConfigured'=>$this->googleConfigured(),'mailConfigured'=>$this->mailConfigured(),'build'=>'php-8.3-mysql','features'=>['patientCodes','inviteEmail','smartLinks','privateFiles','emailRegistration']];
+        if($path==='config')return ['termsVersion'=>$this->config['terms_version'],'privacyVersion'=>$this->config['privacy_version'],'googleConfigured'=>$this->googleConfigured(),'mailConfigured'=>$this->mailConfigured(),'build'=>'php-8.3-mysql','features'=>['patientCodes','inviteEmail','smartLinks','privateFiles','emailRegistration','patientAdministration']];
         if($path==='me'){try{$u=$this->user(false);return ['user'=>array_intersect_key($u,array_flip(['id','name','email'])),'needsConsent'=>!$this->hasConsent($u['id'])];}catch(HttpError){return ['user'=>null];}}
         if(in_array($path,['register','register/confirm','register/resend'],true))return (new Registration($this))->handle($path,$b);
         if($path==='login'){

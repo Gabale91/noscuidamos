@@ -1,9 +1,14 @@
 const renderBeforeAdministration = render;
+const administrationAvailable = fetch('/api/config')
+  .then(response=>response.ok?response.json():null)
+  .then(config=>config?.features?.includes('patientAdministration')===true)
+  .catch(()=>false);
 render = function () {
   renderBeforeAdministration();
   if (['family','sharedPatient','home','sharedPatients'].includes(page)) showPatientAdministration();
 };
 async function showPatientAdministration(){
+  if(!await administrationAvailable)return;
   const main=document.querySelector('main');
   if(!main)return;
   const card=document.createElement('section');
