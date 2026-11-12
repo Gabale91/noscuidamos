@@ -41,7 +41,7 @@ jobs:
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug lintDebug
+          ./gradlew --no-daemon assembleDebug bundleRelease lintDebug
       - name: Preparar download e verificação
         run: |
           mkdir -p apk-download
@@ -53,6 +53,12 @@ jobs:
         with:
           name: nos-cuidamos-apk-teste
           path: apk-download/
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nos-cuidamos-aab-sem-assinatura
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
           if-no-files-found: error
       - name: Resumo do download
@@ -83,6 +89,7 @@ jobs:
             adb shell am start -W -n br.com.gabale.noscuidamos.teste/.MainActivity | tee android-start.txt
             grep -q 'Status: ok' android-start.txt
             adb shell pidof br.com.gabale.noscuidamos.teste
+            adb exec-out screencap -p > android-tela-local.png
             adb shell am start -W -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:br.com.gabale.noscuidamos.teste
             bash -e -c 'for attempt in {1..10}; do adb shell uiautomator dump /sdcard/nc-icon.xml >/dev/null 2>&1 || true; if adb shell cat /sdcard/nc-icon.xml 2>/dev/null | grep -q "Nós Cuidamos"; then exit 0; fi; sleep 2; done; exit 1'
             adb exec-out screencap -p > android-icone.png
@@ -91,6 +98,7 @@ jobs:
           name: nos-cuidamos-validacao-android
           path: |
             android-icone.png
+            android-tela-local.png
             android-start.txt
           retention-days: 30
           if-no-files-found: error

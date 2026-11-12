@@ -27,17 +27,37 @@ try {
     }
     $config=require $configFile;
     if(!is_array($config)||!filter_var($config['origin']??'',FILTER_VALIDATE_URL))fail('Configuração inválida.',503);
-    $app=new App($config);$method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
-    $reads=['config','me','profile','notifications/list','notifications/state','notifications/patient-code','notifications/share-invite','notifications/shared-patients','notifications/shared-patient','notifications/details','notifications/owned-patients','files/download','files/list'];
+    $method=$_SERVER['REQUEST_METHOD'];$path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)?:'/');$body=[];
+    $mobileOrigin=str_starts_with($config['origin'],'https://') && str_starts_with($path,'/api/') && ($_SERVER['HTTP_ORIGIN']??'')==='https://localhost';
+    if($mobileOrigin){
+        if(($_SERVER['HTTPS']??'')!=='on')fail('Use uma conexão HTTPS.',403);
+        header('Access-Control-Allow-Origin: https://localhost');
+        header('Vary: Origin');
+        if($method==='OPTIONS'){
+            header('Access-Control-Allow-Methods: GET, POST');
+            header('Access-Control-Allow-Headers: Content-Type, Authorization, X-NC-Android');
+            http_response_code(204);exit;
+        }
+        if(($_SERVER['HTTP_X_NC_ANDROID']??'')!=='1')fail('Cliente inválido.',403);
+    }
+    $app=new App($config,$mobileOrigin);
+    $reads=['config','me','profile','mobile/context','notifications/list','notifications/state','notifications/patient-code','notifications/share-invite','notifications/shared-patients','notifications/shared-patient','notifications/details','notifications/owned-patients','files/download','files/list'];
     if(str_starts_with($path,'/api/')){
         $action=substr($path,5);
         if(!in_array($method,['GET','POST'],true)||($method==='GET'&&!in_array($action,$reads,true))||($method==='POST'&&in_array($action,array_diff($reads,['profile']),true)))fail('Método inválido.',405);
         if($method==='POST'){
-            if(($_SERVER['HTTP_ORIGIN']??'')!==$config['origin'])fail('Origem da solicitação inválida.',403);
+            if(!$mobileOrigin&&($_SERVER['HTTP_ORIGIN']??'')!==$config['origin'])fail('Origem da solicitação inválida.',403);
             $app->rate($path);$limit=$action==='files/upload'?11000000:($action==='notifications/sync'?2000000:($action==='profile'?300000:16000));
             if((int)($_SERVER['CONTENT_LENGTH']??0)>$limit)fail('Solicitação muito grande.',413);
             if($action==='files/upload')$body=$_POST;
             else{if(!str_starts_with($_SERVER['CONTENT_TYPE']??'','application/json'))fail('Formato inválido.',415);$raw=file_get_contents('php://input',false,null,0,$limit+1);if(strlen($raw)>$limit)fail('Solicitação muito grande.',413);$body=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($body))fail('Dados inválidos.');}
+        }
+        if($action==='mobile/context'){
+            $u=$app->user();
+            $saved=$app->notifications($u['id'],'owned-patients',[]);
+            $saved['userId']=$u['id'];
+            $saved['revision']=(int)($app->one('SELECT revision FROM cf_sync WHERE user_id=?',[$u['id']])['revision']??0);
+            json_out($saved);
         }
         if(str_starts_with($action,'notifications/')){ $u=$app->user();json_out($app->notifications($u['id'],substr($action,14),$body)); }
         if(str_starts_with($action,'files/')){

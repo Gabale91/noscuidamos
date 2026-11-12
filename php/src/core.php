@@ -25,9 +25,12 @@ function redirect_to(string $path): never { header('Location: '.$path, true, 302
 final class App {
     public PDO $db;
     public string $sessionHash;
-    public function __construct(public array $config) {
+    public ?string $mobileSession = null;
+    public function __construct(public array $config, private bool $mobile=false) {
         $this->db = new PDO($config['dsn'], $config['db_user'], $config['db_password'], [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
-        $this->sessionHash=digest((string)($_COOKIE['cf_session']??''));
+        $authorization=$_SERVER['HTTP_AUTHORIZATION']??'';
+        $token=$mobile?(preg_match('/^Bearer ([a-f0-9]{64})$/D',$authorization,$match)?$match[1]:''):(string)($_COOKIE['cf_session']??'');
+        $this->sessionHash=digest(($mobile?'android:':'').$token);
     }
     public function q(string $sql, array $args=[]): PDOStatement { $q=$this->db->prepare($sql); $q->execute($args); return $q; }
     public function one(string $sql, array $args=[]): array|false { return $this->q($sql,$args)->fetch(); }
@@ -44,8 +47,8 @@ final class App {
         if(($b['accepted']??false)!==true||($b['termsVersion']??'')!==$this->config['terms_version']||($b['privacyVersion']??'')!==$this->config['privacy_version'])fail('Leia e aceite as versões atuais dos Termos de Uso e da Política de Privacidade.');
         if(!$this->hasConsent($user))$this->q('INSERT INTO cf_consents VALUES(?,?,?,?,?)',[uid(),$user,$b['termsVersion'],$b['privacyVersion'],nowms()]);
     }
-    public function cookie(string $value, int $age=0): void { setcookie('cf_session',$value,['expires'=>$age>0?time()+$age:($age<0?1:0),'path'=>'/','secure'=>str_starts_with($this->config['origin'],'https://'),'httponly'=>true,'samesite'=>'Lax']); }
-    public function start(string $user, bool $remember): void { $t=secret();$ttl=$remember?2592000:28800;$this->q('INSERT INTO cf_sessions(token,user_id,expires) VALUES(?,?,?)',[digest($t),$user,nowms()+$ttl*1000]);$this->cookie($t,$remember?$ttl:0); }
+    public function cookie(string $value, int $age=0): void { if(!$this->mobile)setcookie('cf_session',$value,['expires'=>$age>0?time()+$age:($age<0?1:0),'path'=>'/','secure'=>str_starts_with($this->config['origin'],'https://'),'httponly'=>true,'samesite'=>'Lax']); }
+    public function start(string $user, bool $remember): void { $t=secret();$ttl=$remember&&!$this->mobile?2592000:28800;$this->q('INSERT INTO cf_sessions(token,user_id,expires) VALUES(?,?,?)',[digest(($this->mobile?'android:':'').$t),$user,nowms()+$ttl*1000]);if($this->mobile)$this->mobileSession=$t;else $this->cookie($t,$remember?$ttl:0); }
     public function rate(string $path): void {
         $bucket=digest(($_SERVER['REMOTE_ADDR']??'').':'.$path.':'.intdiv(time(),60));
         $this->q('INSERT INTO cf_rate(bucket,hits,expires) VALUES(?,1,?) ON DUPLICATE KEY UPDATE hits=hits+1',[$bucket,nowms()+120000]);
@@ -68,7 +71,7 @@ final class App {
             $password=$b['password']??'';
             $valid=is_string($password)&&strlen($password)<=128&&password_verify($password,$u['password']??'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi');
             if(!$valid||!$u||!$u['password'])fail('E-mail ou senha incorretos. Verifique os dados informados e tente novamente.',401);
-            $this->start($u['id'],($b['remember']??false)===true);$this->audit('login',$u['id']);return ['ok'=>true,'needsConsent'=>!$this->hasConsent($u['id'])];
+            $this->start($u['id'],($b['remember']??false)===true);$this->audit('login',$u['id']);return ['ok'=>true,'needsConsent'=>!$this->hasConsent($u['id'])]+($this->mobileSession?['sessionToken'=>$this->mobileSession]:[]);
         }
         if($path==='forgot'){
             $email=email_value($b['email']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Informe um e-mail válido.');if(!$this->mailConfigured())fail('Envio de e-mail ainda não configurado.',503);
