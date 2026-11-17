@@ -48,7 +48,7 @@ final class App {
         if(!$this->hasConsent($user))$this->q('INSERT INTO cf_consents VALUES(?,?,?,?,?)',[uid(),$user,$b['termsVersion'],$b['privacyVersion'],$acceptedAt??nowms()]);
     }
     public function cookie(string $value, int $age=0): void { if(!$this->mobile)setcookie('cf_session',$value,['expires'=>$age>0?time()+$age:($age<0?1:0),'path'=>'/','secure'=>str_starts_with($this->config['origin'],'https://'),'httponly'=>true,'samesite'=>'Lax']); }
-    public function start(string $user, bool $remember): void { $t=secret();$ttl=$remember&&!$this->mobile?2592000:28800;$this->q('INSERT INTO cf_sessions(token,user_id,expires) VALUES(?,?,?)',[digest(($this->mobile?'android:':'').$t),$user,nowms()+$ttl*1000]);if($this->mobile)$this->mobileSession=$t;else $this->cookie($t,$remember?$ttl:0); }
+    public function start(string $user, bool $remember): void { $t=secret();$ttl=$remember?2592000:28800;$this->q('INSERT INTO cf_sessions(token,user_id,expires) VALUES(?,?,?)',[digest(($this->mobile?'android:':'').$t),$user,nowms()+$ttl*1000]);if($this->mobile)$this->mobileSession=$t;else $this->cookie($t,$remember?$ttl:0); }
     public function rate(string $path): void {
         $bucket=digest(($_SERVER['REMOTE_ADDR']??'').':'.$path.':'.intdiv(time(),60));
         $this->q('INSERT INTO cf_rate(bucket,hits,expires) VALUES(?,1,?) ON DUPLICATE KEY UPDATE hits=hits+1',[$bucket,nowms()+120000]);
@@ -76,7 +76,7 @@ final class App {
         if($path==='forgot'){
             $email=email_value($b['email']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Informe um e-mail válido.');if(!$this->mailConfigured())fail('Envio de e-mail ainda não configurado.',503);
             $u=$this->one('SELECT id FROM cf_users WHERE email=? AND password IS NOT NULL',[$email]);
-            if($u){$t=$this->challenge($u['id'],'reset');try{$this->send($email,'Redefinir senha',$this->config['origin'].'/?reset='.$t);}catch(Throwable $e){$this->q('DELETE FROM cf_challenges WHERE token=?',[digest($t)]);}}
+            if($u){$t=$this->challenge($u['id'],'reset');try{$this->send($email,'Redefinir senha',$this->config['origin'].'/index.php?reset='.$t);}catch(Throwable $e){$this->q('DELETE FROM cf_challenges WHERE token=?',[digest($t)]);}}
             return ['message'=>'Se houver uma conta com senha para este e-mail, você receberá as instruções de redefinição.'];
         }
         if($path==='reset'){

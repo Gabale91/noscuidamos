@@ -18,15 +18,17 @@ const authPolicy="default-src 'none'; script-src 'self'; style-src 'self' 'unsaf
 const clinicalPolicy="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "+connect+" https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://tessdata.projectnaptha.com";
 const csp=policy=>'<meta http-equiv="Content-Security-Policy" content="'+policy+"; base-uri 'none'; object-src 'none'; form-action 'none'"+'">';
 const bridge='<script src="/api-bridge.js"></script>';
+const safeArea='<link rel="stylesheet" href="/android-safe-area.css">';
 
 const login=(await readFile(assets+'/login.html','utf8'))
-  .replace('<head>','<head>'+csp(authPolicy)+bridge)
+  .replace('width=device-width,initial-scale=1"','width=device-width,initial-scale=1,viewport-fit=cover"')
+  .replace('<head>','<head>'+csp(authPolicy)+bridge+safeArea)
   .replace('<script src="/google-link.js"></script>','');
 await writeFile(out+'/index.html',login);
 await writeFile(out+'/profile.html',login);
 
 const app=(await readFile(assets+'/app.html','utf8'))
-  .replace('<head>','<head>'+csp(clinicalPolicy)+bridge)
+  .replace('<head>','<head>'+csp(clinicalPolicy)+bridge+safeArea)
   .replace(/<!-- NC_CONTEXT -->.*?<\/script>(?=<\/body>)/s,
     '<p id="mobile-loading" role="status">Carregando seus dados…</p><script src="/clinical-entry.js"></script>');
 await writeFile(out+'/app.html',app);
@@ -40,6 +42,6 @@ for(const file of ['legal-documents.js','auth-ui.js','clinical-app.js','notifica
   if(file==='php-files.js')js=js.replaceAll("location.assign('/api/files/download?id='+encodeURIComponent(d.serverFileId))","window.downloadMobileFile('/api/files/download?id='+encodeURIComponent(d.serverFileId),d.fileName)").replaceAll("location.assign('/api/files/download?id='+encodeURIComponent(r.serverFileId))","window.downloadMobileFile('/api/files/download?id='+encodeURIComponent(r.serverFileId),r.fileName)");
   await writeFile(out+'/'+file,js);
 }
-for(const file of ['api-bridge.js','clinical-entry.js','mobile-tools.js'])await copyFile(root+'/src/'+file,out+'/'+file);
+for(const file of ['api-bridge.js','clinical-entry.js','mobile-tools.js','android-safe-area.css'])await copyFile(root+'/src/'+file,out+'/'+file);
 await copyFile(repo+'/php/public/icon.svg',out+'/icon.svg');
 console.log('Login, perfil e área clínica empacotados localmente.');

@@ -26,13 +26,11 @@ function page(mode='login'){
 }
 async function submitAuth(e,path){e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;try{await api(path,formData(e.target));await route();}catch(error){message(error.message);button.disabled=false;formWatch();}}
 function confirmationPage(){
-  root.innerHTML=`<h1>Confirmar e-mail</h1><p>Informe o código enviado para <strong>${escapeHTML(pendingRegistration.email)}</strong>.</p>
+  root.innerHTML=`<p>Enviamos um código de confirmação para o e-mail cadastrado.</p>
     <form data-auth-submit="register-confirm"><label for="code">Código de confirmação</label>
     <input id="code" name="code" required minlength="6" maxlength="6" pattern="[A-Za-z0-9]{6}" autocomplete="one-time-code">
-    <button class="primary">Confirmar e-mail</button></form>
-    <form data-auth-submit="register-resend">${input('E-mail para reenvio ou correção','email','email',pendingRegistration.email)}
-    <button>Enviar novo código</button></form><p class="note">Para reenviar ao mesmo endereço, aguarde 60 segundos.</p>
-    <p id="message" role="alert"></p><button data-auth-click="login">Voltar ao login</button>`;
+    <button class="primary">Confirmar</button></form>
+    <form data-auth-submit="register-resend"><button>Reenviar código</button></form><p id="message" role="alert"></p>`;
   document.getElementById('code').focus();
 }
 async function startRegistration(event){
@@ -53,9 +51,9 @@ async function confirmRegistration(event){
   });
 }
 async function resendRegistration(event){
-  await registrationRequest(event,async data=>{
-    const result=await api('register/resend',{email:data.email,registrationToken:pendingRegistration.token});
-    pendingRegistration={token:result.registrationToken,email:data.email};
+  await registrationRequest(event,async ()=>{
+    const result=await api('register/resend',{registrationToken:pendingRegistration.token});
+    pendingRegistration={...pendingRegistration,token:result.registrationToken};
     confirmationPage();
     message('Novo código solicitado. Confira seu e-mail.',false);
   });
@@ -76,7 +74,7 @@ function openAndroidRecovery(event){
   try{
     const url=new URL(link);
     const tokens=url.searchParams.getAll('reset');
-    if(url.origin!==window.ncAndroidApiOrigin||url.pathname!=='/'||url.username||url.password||
+    if(url.origin!==window.ncAndroidApiOrigin||!['/','/index.php'].includes(url.pathname)||url.username||url.password||
        tokens.length!==1||!/^[a-f0-9]{64}$/.test(tokens[0]))throw new Error();
     resetToken=tokens[0];
     page('reset');

@@ -46,7 +46,14 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
       const token=(await readFile(tmp+'/message.txt','utf8')).match(/\?reset=([a-f0-9]{64})/)[1];
       const replacement='NovaSenha2!';
       const reset={token,password:replacement,confirmPassword:replacement};
-      assert.equal((await api('reset',reset,'',headers)).r.status,200);
+      const resetUrl=origin+'/index.php?reset='+token;
+      const resetPage=await fetch(resetUrl);
+      assert.equal(resetPage.status,200);
+      assert.match(await resetPage.text(),/<form method="post">/);
+      const resetResult=await fetch(resetUrl,{method:'POST',headers:{Origin:webOrigin},body:new URLSearchParams({password:replacement,confirmPassword:replacement})});
+      assert.equal(resetResult.status,200);
+      assert.match(await resetResult.text(),/<h1>Senha redefinida<\/h1>/);
+      assert.equal((await api('login',{email,password},'',headers)).r.status,401);
       assert.equal((await api('reset',reset,'',headers)).r.status,400);
       assert.equal((await api('mobile/context',undefined,'',{...headers,Authorization:'Bearer '+login.data.sessionToken})).r.status,401);
       const resumed=await api('login',{email,password:replacement},'',headers);

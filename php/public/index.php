@@ -59,6 +59,24 @@ try {
         if(($_SERVER['HTTP_X_NC_ANDROID']??'')!=='1')fail('Cliente inválido.',403);
     }
     $app=new App($config,$mobileOrigin);
+    if($path==='/index.php' && array_key_exists('reset',$_GET)){
+        $reset=$_GET['reset'];
+        if(!is_string($reset)||!preg_match('/^[a-f0-9]{64}$/D',$reset)||!in_array($method,['GET','POST'],true))fail('Link inválido ou expirado.',400);
+        header('Content-Type: text/html; charset=utf-8');
+        header("Content-Security-Policy: default-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+        $message='';
+        if($method==='POST'){
+            if(($_SERVER['HTTP_ORIGIN']??'')!==$config['origin'])fail('Origem da solicitação inválida.',403);
+            $app->rate('password-reset-form');
+            try{
+                $app->auth('reset',['token'=>$reset,'password'=>$_POST['password']??null,'confirmPassword'=>$_POST['confirmPassword']??null],'POST');
+                echo '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Nós Cuidamos</title><main><h1>Senha redefinida</h1><p>Abra o aplicativo Nós Cuidamos e entre com a nova senha.</p></main></html>';
+                exit;
+            }catch(HttpError $error){$message=$error->getMessage();}
+        }
+        echo '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Redefinir senha — Nós Cuidamos</title><main><h1>Redefinir senha</h1><p>Use pelo menos seis caracteres, com maiúscula, minúscula, número e símbolo.</p><p role="alert">'.e($message).'</p><form method="post"><p><label>Nova senha <input name="password" type="password" autocomplete="new-password" required></label></p><p><label>Confirme a senha <input name="confirmPassword" type="password" autocomplete="new-password" required></label></p><button>Salvar nova senha</button></form></main></html>';
+        exit;
+    }
     $reads=['config','me','profile','mobile/context','notifications/list','notifications/state','notifications/patient-code','notifications/share-invite','notifications/shared-patients','notifications/shared-patient','notifications/details','notifications/owned-patients','files/download','files/list'];
     if(str_starts_with($path,'/api/')){
         $action=substr($path,5);

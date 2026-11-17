@@ -87,6 +87,13 @@ check($a->notices($relative['id'])['unread']>0,'notificações persistidas para 
 check($a->one("SELECT post_notes FROM cf_clinical_records WHERE patient=? AND category='appointments' AND record_id='a1'",[$patientId])['post_notes']==='x','observação em coluna relacional');
 rejected(fn()=>$a->join($outsider['id'],$code),404,'convite utilizado não vincula outra conta');
 $info=$a->info($owner['id'],$patientId);check(str_contains($info['message'],'💚')&&str_contains($info['link'],'/convite/'),'convite UTF-8 com link');
+$recipient='invite-'.$suffix.'@example.test';
+$inviteRequest=['patient'=>$patientId,'email'=>$recipient];
+check($a->notifications($owner['id'],'send-invite',$inviteRequest)['message']==='Convite enviado com sucesso','CT-03 confirmação exata do convite');
+check(str_contains($messages[$recipient],$info['link']),'CT-03 convite entregue ao destinatário esperado');
+$a->config['mail_transport']=static function(){fail('Falha fictícia de transporte',503);};
+rejected(fn()=>$a->notifications($owner['id'],'send-invite',$inviteRequest),503,'CT-03 falha de envio impede sucesso');
+$a->config['mail_transport']=$transport;
 $a->notifications($owner['id'],'revoke',['patient'=>$patientId,'userId'=>$relative['id']]);rejected(fn()=>$a->shared($relative['id'],$patientId),403,'revogação imediata');rejected(fn()=>$a->join($outsider['id'],$code),404,'código antigo invalidado');check(!$a->one('SELECT id FROM cf_links WHERE patient=?',[$patientId]),'link antigo removido');
 $subject=['patient'=>$patientId,'userId'=>$relative['id']];
 check($a->managePatient($owner['id'],'admin-members',$subject)['needsSecondAdmin'],'criador é administrador e configuração inicia pendente');

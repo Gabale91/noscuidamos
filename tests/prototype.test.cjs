@@ -44,11 +44,33 @@ test('exame oferece preparo sem observações pré-atendimento; consulta mantém
   vm.runInContext("kind='Exame';db.appointments[0].type='Exame'", ctx);
   const exam = vm.runInContext('newAppointment()', ctx);
   assert.match(exam, /Instruções de preparo/);
+  assert.match(exam, /<textarea[^>]*name="prep"[^>]*rows="5"/);
+  const preparation = 'Jejum conforme orientação\n\n' + 'Levar documentos. '.repeat(40);
+  ctx.preparation = preparation;
+  vm.runInContext('db.appointments[0].prep=preparation',ctx);
+  assert.ok(vm.runInContext('detail()',ctx).includes(preparation));
   assert.doesNotMatch(exam, /Observações pré-atendimento|name="notes"/);
   assert.doesNotMatch(vm.runInContext('detail()', ctx), /Observações pré-atendimento/);
   vm.runInContext("kind='Consulta';db.appointments[0].type='Consulta'", ctx);
   assert.match(vm.runInContext('newAppointment()', ctx), /name="notes"/);
   assert.match(vm.runInContext('detail()', ctx), /Observações pré-atendimento/);
+});
+test('CT-08 — agenda lista próximos em ordem cronológica e mantém histórico', () => {
+  const ctx=context();
+  vm.runInContext(`localDateTime=()=> '2026-11-16T09:00';tab='Próximos';
+    db.appointments=[
+      {id:1,name:'Futuro B',date:'2026-11-18',time:'10:00',status:'Agendado'},
+      {id:2,name:'Futuro A',date:'2026-11-17',time:'09:00',status:'Agendado'},
+      {id:3,name:'Passado',date:'2026-11-16',time:'08:00',status:'Agendado'},
+      {id:4,name:'Concluído',date:'2026-11-15',time:'09:00',status:'Realizado'}
+    ]`,ctx);
+  const upcoming=vm.runInContext('agenda()',ctx);
+  assert.match(upcoming,/Futuro A[\s\S]*Futuro B/);
+  assert.doesNotMatch(upcoming,/Passado|Concluído/);
+  vm.runInContext("tab='Histórico'",ctx);
+  assert.match(vm.runInContext('agenda()',ctx),/Concluído/);
+  vm.runInContext("tab='Próximos';db.appointments=[]",ctx);
+  assert.match(vm.runInContext('agenda()',ctx),/>Nenhum agendamento localizado</);
 });
 test('conflitos por paciente e acompanhante entre pacientes, sem contar cancelados', () => {
   const ctx = context();
