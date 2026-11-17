@@ -168,7 +168,17 @@ trait PatientApi {
             $account=$this->user();
             $password=$b['currentPassword']??null;
             if($account['id']!==$user||!is_string($password)||!password_verify($password,$account['password']??''))fail('Confirme a senha da sua conta para revogar o acesso.',403);
-            return $this->managePatient($user,'admin-remove',['patient'=>$patient,'userId'=>$b['userId']??null,'confirmed'=>true]);
+            return $this->tx(function()use($user,$patient,$b){
+                $this->one('SELECT id FROM cf_patients WHERE id=? FOR UPDATE',[$patient]);
+                $this->patient($user,$patient,true);
+                $target=$b['userId']??null;
+                if(!is_string($target)||$target===$user)fail('Familiar inválido.');
+                if(!$this->q('UPDATE cf_members SET active=0 WHERE patient=? AND user_id=? AND active=1',[$patient,$target])->rowCount())fail('Vínculo indisponível.',404);
+                $this->q('DELETE FROM cf_invite_limits WHERE patient=?',[$patient]);
+                $this->q('DELETE FROM cf_links WHERE patient=?',[$patient]);
+                $this->audit('access_revoked',$user,$patient);
+                return ['ok'=>true];
+            });
         }
         if($action==='send-invite'){$email=email_value($b['email']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL))fail('Informe um e-mail válido.');$i=$this->info($user,$patient);$this->send($email,'Você recebeu um convite — Nós Cuidamos',$i['message']);$this->audit('invite_email_submitted',$user,$patient);return ['message'=>'Convite enviado com sucesso'];}
         if($action==='read'){if(($b['id']??'')==='all')$this->q('UPDATE cf_notices SET read_at=COALESCE(read_at,?) WHERE user_id=?',[nowms(),$user]);else $this->q('UPDATE cf_notices SET read_at=COALESCE(read_at,?) WHERE id=? AND user_id=?',[nowms(),(string)($b['id']??''),$user]);return ['ok'=>true];}
@@ -195,6 +205,36 @@ trait PatientApi {
         if(!move_uploaded_file($f['tmp_name'],$path))fail('Não foi possível armazenar o arquivo.',503);@chmod($path,0600);
         try{$this->tx(function()use($id,$patient,$user,$record,$kind,$name,$mime,$f){$this->one('SELECT id FROM cf_patients WHERE id=? FOR UPDATE',[$patient]);$this->patient($user,$patient);$this->q('INSERT INTO cf_files VALUES(?,?,?,?,?,?,?,?,?)',[$id,$patient,$user,$record,$kind,$name,$mime,$f['size'],nowms()]);$this->audit('file_uploaded',$user,$id);});}catch(Throwable $x){@unlink($path);throw $x;}
         return ['id'=>$id,'fileName'=>$name,'type'=>$mime,'size'=>(int)$f['size'],'url'=>'/api/files/download?id='.$id];
+    }
+    public function removeFile(string $actor,string $id): array {
+        if(!preg_match('/^[a-f0-9]{64}$/D',$id))fail('Arquivo inválido.');
+        $file=$this->one('SELECT patient FROM cf_files WHERE id=?',[$id]);
+        if(!$file)fail('Arquivo indisponível.',404);
+        $patient=$this->patient($actor,$file['patient']);
+        $path=$this->filePath($id);
+        $result=$this->tx(function()use($actor,$id,$patient){
+            $pid=$patient['id'];
+            $this->one('SELECT revision FROM cf_sync WHERE user_id=? FOR UPDATE',[$patient['owner']]);
+            $this->one('SELECT id FROM cf_patients WHERE id=? FOR UPDATE',[$pid]);
+            $this->patient($actor,$pid);
+            if(!$this->q('DELETE FROM cf_files WHERE id=? AND patient=?',[$id,$pid])->rowCount())fail('Arquivo indisponível.',404);
+            $current=$this->shared($actor,$pid);
+            $data=$current['data'];
+            foreach($data['appointments'] as &$visit){
+                foreach(['results','postDocuments'] as $key){
+                    if(isset($visit[$key]))$visit[$key]=array_values(array_filter($visit[$key],static fn($entry)=>($entry['serverFileId']??null)!==$id));
+                }
+            }
+            unset($visit);
+            $snapshot=json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION);
+            $this->q('UPDATE cf_patients SET snapshot=? WHERE id=?',[$snapshot,$pid]);
+            (new ClinicalStore($this->db))->write($pid,json_decode($snapshot,false,512,JSON_THROW_ON_ERROR));
+            $this->q('UPDATE cf_sync SET revision=revision+1 WHERE user_id=?',[$patient['owner']]);
+            $this->audit('file_removed',$actor,$id);
+            return ['editVersion'=>$this->shared($actor,$pid)['editVersion']];
+        });
+        if(is_file($path)&&!@unlink($path))error_log('Cuidado: arquivo privado pendente de limpeza');
+        return $result;
     }
     public function download(string $user,string $id): never {
         $f=$this->one('SELECT * FROM cf_files WHERE id=?',[$id]);if(!$f)fail('Arquivo indisponível.',404);$this->patient($user,$f['patient']);$path=$this->filePath($id);if(!is_file($path))fail('Arquivo indisponível.',404);

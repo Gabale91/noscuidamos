@@ -2,7 +2,6 @@ let sharedWorkspace=null;
 const ownedSave=save;
 const ownedGo=go;
 const ownedSwitch=switchPatient;
-const readOnlyShared=openSharedPatient;
 
 function sharedPatientWorkspace(patient){
   const info=patient.data.patientInfo||{};
@@ -17,13 +16,13 @@ openSharedPatient=async function(id,section='home'){
   try{
     if(sharedWorkspace)await sharedWorkspace.pending;
     const patient=await noticeApi('shared-patient?patient='+encodeURIComponent(id));
-    if(!patient.editVersion)return readOnlyShared(id,section);
+    if(!patient.editVersion)throw new Error('O servidor precisa da atualização de compartilhamento para abrir este paciente.');
     const owned=sharedWorkspace?.owned||db;
     db=sharedPatientWorkspace(patient);
     sharedWorkspace={id,owned,version:patient.editVersion,base:patient.data,pending:Promise.resolve()};
     activeSharedPatient=null;
     ownedGo(['agenda','meds','history'].includes(section)?section:'home');
-  }catch(error){toast(error.message);}
+  }catch(error){toast(error.message);throw error;}
 };
 async function exitSharedWorkspace(){
   const current=sharedWorkspace;

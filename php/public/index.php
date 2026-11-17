@@ -83,7 +83,7 @@ try {
         if(!in_array($method,['GET','POST'],true)||($method==='GET'&&!in_array($action,$reads,true))||($method==='POST'&&in_array($action,array_diff($reads,['profile']),true)))fail('Método inválido.',405);
         if($method==='POST'){
             if(!$mobileOrigin&&($_SERVER['HTTP_ORIGIN']??'')!==$config['origin'])fail('Origem da solicitação inválida.',403);
-            $app->rate($path);$limit=$action==='files/upload'?11000000:($action==='notifications/sync'?2000000:($action==='profile'?300000:16000));
+            $app->rate($path);$limit=$action==='files/upload'?11000000:(in_array($action,['notifications/sync','notifications/shared-update'],true)?2000000:($action==='profile'?300000:16000));
             if((int)($_SERVER['CONTENT_LENGTH']??0)>$limit)fail('Solicitação muito grande.',413);
             if($action==='files/upload')$body=$_POST;
             else{if(!str_starts_with($_SERVER['CONTENT_TYPE']??'','application/json'))fail('Formato inválido.',415);$raw=file_get_contents('php://input',false,null,0,$limit+1);if(strlen($raw)>$limit)fail('Solicitação muito grande.',413);$body=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($body))fail('Dados inválidos.');}
@@ -99,6 +99,7 @@ try {
         if(str_starts_with($action,'files/')){
             $u=$app->user();
             if($action==='files/upload')json_out($app->upload($u['id'],$body),201);
+            if($action==='files/remove')json_out($app->removeFile($u['id'],is_string($body['id']??null)?$body['id']:''));
             if($action==='files/download')$app->download($u['id'],(string)($_GET['id']??''));
             if($action==='files/list'){$p=$app->patient($u['id'],(string)($_GET['patient']??''));json_out(['files'=>$app->q('SELECT id,record_id,kind,name,mime,size,created_at FROM cf_files WHERE patient=?',[$p['id']])->fetchAll()]);}
             fail('Operação inválida.',404);

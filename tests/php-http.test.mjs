@@ -95,12 +95,34 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   const state=(await api('notifications/state',undefined,owner)).data,patientId=state.patients[0].id;
   const code=(await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,owner)).data.code;
   assert.equal((await api('notifications/join-patient',{code},relative)).r.status,200);
+  assert.ok((await api('notifications/shared-patients',undefined,relative)).data.patients.some(p=>p.id===patientId));
   const shared=(await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,relative)).data;
   const change={patient:patientId,name:'Paciente atualizado pelo familiar',editVersion:shared.editVersion,data:shared.data};
   change.data.meds.push({id:'m-shared',name:'Medicamento fictício',status:'Em uso',start:'2026-12-20'});
+  change.data.appointments.push(
+    {id:'consult-shared',name:'Consulta fictícia',type:'Consulta',status:'Agendado',date:'2026-12-21',time:'09:00'},
+    {id:'exam-shared',name:'Exame fictício',type:'Exame',status:'Agendado',date:'2026-12-22',time:'09:00'}
+  );
   assert.equal((await api('notifications/shared-update',change,relative)).r.status,200);
   assert.equal((await api('notifications/shared-update',change,relative)).r.status,409);
-  assert.equal((await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,owner)).data.data.meds[0].id,'m-shared');
+  const readByOwner=async()=>(await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,owner)).data;
+  const created=await readByOwner();
+  assert.equal(created.name,change.name);
+  assert.equal(created.data.meds[0].id,'m-shared');
+  assert.equal(created.data.appointments.length,3);
+  for(const entry of [...created.data.appointments.slice(1),created.data.meds[0]])entry.name+=' atualizado';
+  const edited=await api('notifications/shared-update',{patient:patientId,...created},relative);
+  assert.equal(edited.r.status,200);
+  const updated=await readByOwner();
+  assert.ok(updated.data.appointments.slice(1).every(entry=>entry.name.endsWith(' atualizado')));
+  assert.match(updated.data.meds[0].name,/ atualizado$/);
+  updated.data.appointments=updated.data.appointments.filter(entry=>entry.id==='a1');
+  updated.data.meds=[];
+  assert.equal((await api('notifications/shared-update',{patient:patientId,...updated},relative)).r.status,200);
+  const removed=await readByOwner();
+  assert.equal(removed.data.appointments.length,1);
+  assert.deepEqual(removed.data.meds,[]);
+  assert.equal((await api('notifications/revoke',{patient:patientId,userId:(await api('me',undefined,owner)).data.user.id,currentPassword:'Teste1!'},relative)).r.status,403);
   assert.equal((await api('notifications/join-patient',{code},outsider)).r.status,404);
   assert.equal((await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
   assert.equal((await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,relative)).r.status,200);
@@ -111,7 +133,11 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
   assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,relative)).data.files.length,1);
   assert.equal((await upload(Buffer.from('<?php echo 1;'),'arquivo.pdf')).r.status,400);
-  assert.equal((await upload(pdf,'resultado-familiar.pdf',relative)).r.status,201);
+  const byRelative=await upload(pdf,'resultado-familiar.pdf',relative);
+  assert.equal(byRelative.r.status,201);
+  assert.equal((await api('files/remove',{id:byRelative.data.id},outsider)).r.status,403);
+  assert.equal((await api('files/remove',{id:byRelative.data.id},relative)).r.status,200);
+  assert.equal((await fetch(origin+byRelative.data.url,{headers:{Cookie:owner}})).status,404);
   assert.equal((await upload(Buffer.alloc(10_000_001),'grande.pdf')).r.status,400);
   assert.equal((await fetch(origin+file.data.url)).status,401);
   assert.equal((await fetch(origin+file.data.url,{headers:{Cookie:outsider}})).status,403);
