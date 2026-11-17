@@ -111,7 +111,7 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
   assert.equal((await api('files/list?patient='+encodeURIComponent(patientId),undefined,relative)).data.files.length,1);
   assert.equal((await upload(Buffer.from('<?php echo 1;'),'arquivo.pdf')).r.status,400);
-  assert.equal((await upload(pdf,'resultado.pdf',relative)).r.status,403);
+  assert.equal((await upload(pdf,'resultado-familiar.pdf',relative)).r.status,201);
   assert.equal((await upload(Buffer.alloc(10_000_001),'grande.pdf')).r.status,400);
   assert.equal((await fetch(origin+file.data.url)).status,401);
   assert.equal((await fetch(origin+file.data.url,{headers:{Cookie:outsider}})).status,403);

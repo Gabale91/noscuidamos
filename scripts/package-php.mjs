@@ -56,7 +56,7 @@ let app=inline[1]
 const appBindings=compileClinicalHandlers(app);
 await writeFile(out+'/private/assets/clinical-app.js',appBindings.compiled);
 await writeFile(out+'/private/assets/clinical-events.js',clinicalEventCode(new Set([...appBindings.actions,...noticeBindings.actions])));
-html=html.replace(inline[0],'<!-- NC_CONTEXT --><script src="/clinical-app.js"></script><script src="/php-bootstrap.js"></script><script src="/notifications-ui.js"></script><script src="/php-files.js"></script><script src="/clinical-events.js"></script><script src="/patient-admin-ui.js"></script>');
+html=html.replace(inline[0],'<!-- NC_CONTEXT --><script src="/clinical-app.js"></script><script src="/php-bootstrap.js"></script><script src="/notifications-ui.js"></script><script src="/php-files.js"></script><script src="/clinical-events.js"></script><script src="/patient-admin-ui.js"></script><script src="/shared-workspace.js"></script>');
 await writeFile(out+'/private/assets/app.html',html);
 await copyFile('docs/locaweb-php.md',out+'/LEIA-ME.md');
 await copyFile('docs/publicacao-producao.md',out+'/PUBLICACAO.md');

@@ -185,7 +185,7 @@ trait PatientApi {
     }
     public function filePath(string $id): string { if(!preg_match('/^[a-f0-9]{64}$/',$id))fail('Arquivo inválido.');return $this->storageRoot().DIRECTORY_SEPARATOR.$id.'.bin'; }
     public function upload(string $user,array $b): array {
-        $patient=(string)($b['patient']??'');$p=$this->patient($user,$patient,true);$record=(string)($b['record']??'');$kind=(string)($b['kind']??'');
+        $patient=(string)($b['patient']??'');$p=$this->patient($user,$patient);$record=(string)($b['record']??'');$kind=(string)($b['kind']??'');
         if(!in_array($kind,['result','prescription','exam_order'],true))fail('Tipo de documento inválido.');
         $data=$this->clinicalData($p['id']);$a=null;foreach($data['appointments']??[] as $r)if((string)$r['id']===$record)$a=$r;
         if(!$a||($kind==='result'&&($a['type']??'')!=='Exame')||($kind!=='result'&&(($a['type']??'')!=='Consulta'||($a['status']??'')!=='Realizado')))fail('Documento incompatível com o atendimento.');
@@ -193,7 +193,7 @@ trait PatientApi {
         $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);if(!in_array($mime,['application/pdf','image/jpeg','image/png'],true))fail('Use PDF, JPG ou PNG.');
         $id=secret();$path=$this->filePath($id);$name=substr(basename(str_replace('\\','/',$f['name'])),0,240);$name=preg_replace('/[\x00-\x1f\x7f]/','',$name);
         if(!move_uploaded_file($f['tmp_name'],$path))fail('Não foi possível armazenar o arquivo.',503);@chmod($path,0600);
-        try{$this->tx(function()use($id,$patient,$user,$record,$kind,$name,$mime,$f){$this->patient($user,$patient,true);$this->q('INSERT INTO cf_files VALUES(?,?,?,?,?,?,?,?,?)',[$id,$patient,$user,$record,$kind,$name,$mime,$f['size'],nowms()]);$this->audit('file_uploaded',$user,$id);});}catch(Throwable $x){@unlink($path);throw $x;}
+        try{$this->tx(function()use($id,$patient,$user,$record,$kind,$name,$mime,$f){$this->one('SELECT id FROM cf_patients WHERE id=? FOR UPDATE',[$patient]);$this->patient($user,$patient);$this->q('INSERT INTO cf_files VALUES(?,?,?,?,?,?,?,?,?)',[$id,$patient,$user,$record,$kind,$name,$mime,$f['size'],nowms()]);$this->audit('file_uploaded',$user,$id);});}catch(Throwable $x){@unlink($path);throw $x;}
         return ['id'=>$id,'fileName'=>$name,'type'=>$mime,'size'=>(int)$f['size'],'url'=>'/api/files/download?id='.$id];
     }
     public function download(string $user,string $id): never {

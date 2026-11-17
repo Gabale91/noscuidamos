@@ -34,11 +34,25 @@ family=function(){return notificationFamilyOriginal().replace('<h3>Participantes
 async function familyInviteData(){await flushNotifications();if(notificationQueue.length)throw new Error('Aguarde a sincronização dos dados antes de gerar o convite.');const state=await noticeApi('state'),patient=state.patients.find(p=>p.id.slice(p.id.indexOf(':')+1)===String(db.activePatientId));if(!patient)throw new Error('Cadastre e sincronize o paciente antes de convidar um familiar.');return noticeApi('share-invite?patient='+encodeURIComponent(patient.id));}
 async function createFamilyWhatsAppInvite(e){e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;try{const data=await familyInviteData();location.assign(whatsappInviteURL(data));}catch(error){toast(error.message);}finally{button.disabled=false;}}
 
-async function sendFamilyEmailInvite(form){const email=form.elements.email.value.trim();if(!email){form.elements.email.setCustomValidity('Informe o e-mail do familiar.');form.elements.email.reportValidity();form.elements.email.oninput=()=>form.elements.email.setCustomValidity('');return;}if(!form.reportValidity())return;const button=form.querySelector('[onclick="sendFamilyEmailInvite(this.form)"]');button.disabled=true;try{await flushNotifications();if(notificationQueue.length)throw new Error('Aguarde a sincronização dos dados.');const state=await noticeApi('state'),patient=state.patients.find(p=>p.id.slice(p.id.indexOf(':')+1)===String(db.activePatientId));if(!patient)throw new Error('Sincronize o paciente antes de enviar o convite.');const result=await noticeApi('send-invite',{patient:patient.id,email});toast(result.message);}catch(error){toast(error.message);}finally{button.disabled=false;}}
+async function sendFamilyEmailInvite(form){
+  if(!form.reportValidity())return;
+  const email=form.elements.email.value.trim();
+  if(!email){toast('Informe o e-mail do familiar.');return;}
+  const button=form.querySelector('[type="button"]');
+  if(button)button.disabled=true;
+  try{
+    const invite=await familyInviteData();
+    const result=await noticeApi('send-invite',{patient:invite.patientId,email});
+    toast(result.message);
+  }catch(error){toast(error.message);}
+  finally{if(button)button.disabled=false;}
+}
 async function acceptNotificationInvite(e){e.preventDefault();try{await noticeApi('join-patient',{code:e.target.elements.token.value.trim()});toast('Paciente conectado à sua conta');await refreshSharedPatients();await loadNotificationSettings();await refreshNotifications(false);}catch(error){toast(error.message);}}
 function revokeNotificationMember(patient,userId){
   const dialog=document.createElement('dialog');
-  dialog.innerHTML='<form method="dialog"><h2>Revogar acesso do familiar</h2><label>Confirme sua senha <input type="password" autocomplete="current-password" required></label><p role="alert"></p><button type="button">Cancelar</button><button type="submit">Revogar acesso</button></form>';
+  dialog.id='companionDialog';
+  dialog.setAttribute('aria-labelledby','revokeTitle');
+  dialog.innerHTML='<form method="dialog"><h2 id="revokeTitle">Revogar acesso do familiar</h2><label for="revokePassword">Confirme sua senha</label><input id="revokePassword" type="password" autocomplete="current-password" required><p id="companionError" role="alert"></p><div class="post-actions"><button class="primary" type="submit">Revogar acesso</button><button class="secondary" type="button">Cancelar</button></div></form>';
   const form=dialog.querySelector('form');
   dialog.querySelector('[type=button]').onclick=()=>dialog.close();
   dialog.addEventListener('close',()=>dialog.remove());
