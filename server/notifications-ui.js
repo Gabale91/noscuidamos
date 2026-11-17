@@ -36,7 +36,26 @@ async function createFamilyWhatsAppInvite(e){e.preventDefault();const button=e.t
 
 async function sendFamilyEmailInvite(form){const email=form.elements.email.value.trim();if(!email){form.elements.email.setCustomValidity('Informe o e-mail do familiar.');form.elements.email.reportValidity();form.elements.email.oninput=()=>form.elements.email.setCustomValidity('');return;}if(!form.reportValidity())return;const button=form.querySelector('[onclick="sendFamilyEmailInvite(this.form)"]');button.disabled=true;try{await flushNotifications();if(notificationQueue.length)throw new Error('Aguarde a sincronização dos dados.');const state=await noticeApi('state'),patient=state.patients.find(p=>p.id.slice(p.id.indexOf(':')+1)===String(db.activePatientId));if(!patient)throw new Error('Sincronize o paciente antes de enviar o convite.');const result=await noticeApi('send-invite',{patient:patient.id,email});toast(result.message);}catch(error){toast(error.message);}finally{button.disabled=false;}}
 async function acceptNotificationInvite(e){e.preventDefault();try{await noticeApi('join-patient',{code:e.target.elements.token.value.trim()});toast('Paciente conectado à sua conta');await refreshSharedPatients();await loadNotificationSettings();await refreshNotifications(false);}catch(error){toast(error.message);}}
-async function revokeNotificationMember(patient,userId){if(!confirm('Revogar o acesso deste acompanhante às informações do paciente?'))return;try{await noticeApi('revoke',{patient,userId});await loadNotificationSettings();}catch(error){toast(error.message);}}
+function revokeNotificationMember(patient,userId){
+  const dialog=document.createElement('dialog');
+  dialog.innerHTML='<form method="dialog"><h2>Revogar acesso do familiar</h2><label>Confirme sua senha <input type="password" autocomplete="current-password" required></label><p role="alert"></p><button type="button">Cancelar</button><button type="submit">Revogar acesso</button></form>';
+  const form=dialog.querySelector('form');
+  dialog.querySelector('[type=button]').onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>dialog.remove());
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const field=form.querySelector('input');
+    const currentPassword=field.value;
+    field.value='';
+    const button=form.querySelector('[type=submit]');
+    button.disabled=true;
+    try{await noticeApi('revoke',{patient,userId,currentPassword});dialog.close();await loadNotificationSettings();}
+    catch(error){form.querySelector('[role=alert]').textContent=error.message;}
+    finally{button.disabled=false;}
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+}
 let sharedPatientsList=[],activeSharedPatient=null,sharedPatientHTML='',sharedSection='home';
 async function refreshSharedPatients(){const result=await noticeApi('shared-patients');sharedPatientsList=result.patients||[];}
 function connectPatientView(){return `<main>${head('Conectar por código')}<p>Informe o código único recebido do responsável. O paciente será vinculado à sua conta, sem criar outro cadastro.</p><form onsubmit="connectPatientByCode(event)"><label for="patientConnectionCode">Código do paciente</label><input id="patientConnectionCode" name="code" required autocomplete="off"><p id="connectionError" role="alert"></p><div class="post-actions"><button class="primary" type="submit">Conectar paciente</button><button class="secondary" type="button" onclick="go('patients')">Cancelar</button></div></form></main>`;}

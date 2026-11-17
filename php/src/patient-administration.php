@@ -56,7 +56,7 @@ trait PatientAdministration {
             }
             if (!in_array($action,['admin-demote','admin-remove'],true)) fail('Operação inválida.',404);
             if (($body['confirmed']??false)!==true) fail('Confirme a alteração.');
-            if ($isAdmin && count(array_unique($active))<=2) fail('O paciente deve manter pelo menos dois administradores ativos.',409);
+            if ($action==='admin-demote' && $isAdmin && count(array_unique($active))<=2) fail('O paciente deve manter pelo menos dois administradores ativos.',409);
             $this->q('DELETE FROM cf_patient_admins WHERE patient=? AND user_id=?',[$id,$target]);
             if ($action==='admin-remove') {
                 $this->q('UPDATE cf_members SET active=0 WHERE patient=? AND user_id=?',[$id,$target]);

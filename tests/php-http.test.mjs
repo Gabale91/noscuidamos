@@ -95,9 +95,15 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   const state=(await api('notifications/state',undefined,owner)).data,patientId=state.patients[0].id;
   const code=(await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,owner)).data.code;
   assert.equal((await api('notifications/join-patient',{code},relative)).r.status,200);
+  const shared=(await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,relative)).data;
+  const change={patient:patientId,name:'Paciente atualizado pelo familiar',editVersion:shared.editVersion,data:shared.data};
+  change.data.meds.push({id:'m-shared',name:'Medicamento fictício',status:'Em uso',start:'2026-12-20'});
+  assert.equal((await api('notifications/shared-update',change,relative)).r.status,200);
+  assert.equal((await api('notifications/shared-update',change,relative)).r.status,409);
+  assert.equal((await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,owner)).data.data.meds[0].id,'m-shared');
   assert.equal((await api('notifications/join-patient',{code},outsider)).r.status,404);
   assert.equal((await api('notifications/shared-patient?patient='+encodeURIComponent(patientId),undefined,outsider)).r.status,403);
-  assert.equal((await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,relative)).r.status,403);
+  assert.equal((await api('notifications/patient-code?patient='+encodeURIComponent(patientId),undefined,relative)).r.status,200);
   assert.equal((await api('notifications/revoke',{patient:patientId,userId:(await api('me',undefined,relative)).data.user.id},outsider)).r.status,403);
   const pdf=Buffer.concat([Buffer.from('%PDF-1.4\n'),Buffer.alloc(2_000_000,32),Buffer.from('\n%%EOF')]);
   const upload=async(blob,name,cookie=owner)=>{const f=new FormData();f.set('patient',patientId);f.set('record','a1');f.set('kind','result');f.set('file',new Blob([blob]),name);return api('files/upload',f,cookie);};
@@ -110,8 +116,9 @@ test('PHP/MySQL: HTTP, upload privado, autorização e revogação', {skip:!proc
   assert.equal((await fetch(origin+file.data.url)).status,401);
   assert.equal((await fetch(origin+file.data.url,{headers:{Cookie:outsider}})).status,403);
   const allowed=await fetch(origin+file.data.url,{headers:{Cookie:relative}});assert.equal(allowed.status,200);assert.equal(allowed.headers.get('content-type'),'application/pdf');assert.deepEqual(Buffer.from(await allowed.arrayBuffer()),pdf);
-  assert.equal((await api('notifications/revoke',{patient:patientId,userId:(await api('me',undefined,relative)).data.user.id},owner)).r.status,200);
+  assert.equal((await api('notifications/revoke',{patient:patientId,userId:(await api('me',undefined,relative)).data.user.id,currentPassword:'Teste1!'},owner)).r.status,200);
   assert.equal((await fetch(origin+file.data.url,{headers:{Cookie:relative}})).status,403);
+  assert.equal((await api('notifications/shared-update',change,relative)).r.status,403);
   const page=await(await fetch(origin+'/app',{headers:{Cookie:owner}})).text();assert.ok(page.includes('phpSaved'));assert.ok(!page.includes('Paciente </script><script>alert(1)</script>'));assert.ok(page.includes('php-files.js'));
   for(const asset of ['auth-ui.js','notifications-ui.js','php-files.js'])assert.equal((await fetch(origin+'/'+asset)).status,200);
   assert.equal((await fetch(origin+'/../private/config.example.php')).status,404);

@@ -74,7 +74,7 @@ rejected(fn()=>$a->auth('login',['email'=>$owner['email'],'password'=>'wrong'],'
 $patient=['id'=>'p1','name'=>'Paciente <script>','data'=>['appointments'=>[['id'=>'a1','type'=>'Consulta','name'=>'Clínico','date'=>'2026-12-10','time'=>'10:00','status'=>'Agendado','companion'=>'Familiar']],'meds'=>[['id'=>'m1','name'=>'Teste','status'=>'Em uso','start'=>'2026-11-08']],'family'=>[]]];
 $batch=['batch'=>uid(),'revision'=>0,'patients'=>[$patient]];$r=$a->sync($owner['id'],$batch);check($r['revision']===1,'snapshot persistido');check($a->sync($owner['id'],$batch)['duplicate']===true,'lote repetido idempotente');
 $patientId=$owner['id'].':p1';rejected(fn()=>$a->shared($outsider['id'],$patientId),403,'conta não autorizada bloqueada');$code=$a->patientCode($owner['id'],$patientId)['code'];$a->join($relative['id'],$code);check($a->shared($relative['id'],$patientId)['data']['appointments'][0]['id']==='a1','familiar lê mesmo paciente');
-rejected(fn()=>$a->patientCode($relative['id'],$patientId),403,'familiar não administra código');
+check($a->patientCode($relative['id'],$patientId)['patient']===$patientId,'familiar compartilha paciente vinculado');
 $stale=['batch'=>uid(),'revision'=>0,'patients'=>[$patient]];rejected(fn()=>$a->sync($owner['id'],$stale),409,'revisão desatualizada rejeitada');
 $dup=$patient;$dup['data']['appointments'][]=$dup['data']['appointments'][0];$dup['data']['appointments'][1]['id']='a2';rejected(fn()=>$a->sync($owner['id'],['batch'=>uid(),'revision'=>1,'patients'=>[$dup]]),409,'horário duplicado do paciente rejeitado');
 $p2=$patient;$p2['id']='p2';rejected(fn()=>$a->sync($owner['id'],['batch'=>uid(),'revision'=>1,'patients'=>[$patient,$p2]]),409,'acompanhante em dois pacientes rejeitado');
@@ -85,7 +85,7 @@ $changed=$patient;$changed['data']['meds'][0]['name']='Alterado';rejected(fn()=>
 $patient['data']['appointments'][0]['postNotes']='x';$a->sync($owner['id'],['batch'=>uid(),'revision'=>2,'patients'=>[$patient]]);check($a->shared($owner['id'],$patientId)['data']['appointments'][0]['postNotes']==='x','pós-atendimento sem tamanho mínimo');
 check($a->notices($relative['id'])['unread']>0,'notificações persistidas para familiar');
 check($a->one("SELECT post_notes FROM cf_clinical_records WHERE patient=? AND category='appointments' AND record_id='a1'",[$patientId])['post_notes']==='x','observação em coluna relacional');
-rejected(fn()=>$a->join($outsider['id'],$code),404,'convite utilizado não vincula outra conta');
+rejected(fn()=>$a->join($outsider['id'],$code),404,'convite anterior não vincula outra conta');
 $info=$a->info($owner['id'],$patientId);check(str_contains($info['message'],'💚')&&str_contains($info['link'],'/convite/'),'convite UTF-8 com link');
 $recipient='invite-'.$suffix.'@example.test';
 $inviteRequest=['patient'=>$patientId,'email'=>$recipient];
@@ -94,7 +94,7 @@ check(str_contains($messages[$recipient],$info['link']),'CT-03 convite entregue 
 $a->config['mail_transport']=static function(){fail('Falha fictícia de transporte',503);};
 rejected(fn()=>$a->notifications($owner['id'],'send-invite',$inviteRequest),503,'CT-03 falha de envio impede sucesso');
 $a->config['mail_transport']=$transport;
-$a->notifications($owner['id'],'revoke',['patient'=>$patientId,'userId'=>$relative['id']]);rejected(fn()=>$a->shared($relative['id'],$patientId),403,'revogação imediata');rejected(fn()=>$a->join($outsider['id'],$code),404,'código antigo invalidado');check(!$a->one('SELECT id FROM cf_links WHERE patient=?',[$patientId]),'link antigo removido');
+$a->notifications($owner['id'],'revoke',['patient'=>$patientId,'userId'=>$relative['id'],'currentPassword'=>'Teste1!']);rejected(fn()=>$a->shared($relative['id'],$patientId),403,'revogação imediata');rejected(fn()=>$a->join($outsider['id'],$code),404,'código antigo invalidado');check(!$a->one('SELECT id FROM cf_links WHERE patient=?',[$patientId]),'link antigo removido');
 $subject=['patient'=>$patientId,'userId'=>$relative['id']];
 check($a->managePatient($owner['id'],'admin-members',$subject)['needsSecondAdmin'],'criador é administrador e configuração inicia pendente');
 $a->join($relative['id'],$a->patientCode($owner['id'],$patientId)['code']);
@@ -104,7 +104,7 @@ check($a->managePatient($owner['id'],'admin-members',$subject)['needsSecondAdmin
 rejected(fn()=>$a->managePatient($outsider['id'],'admin-accept',$subject),403,'terceiro não aceita convite direcionado');
 $a->managePatient($relative['id'],'admin-accept',$subject);
 check(!$a->managePatient($relative['id'],'admin-members',$subject)['needsSecondAdmin'],'segundo administrador ativo após aceite');
-rejected(fn()=>$a->managePatient($owner['id'],'admin-remove',$subject+['confirmed'=>true]),409,'bloqueia remoção abaixo de dois administradores');
+rejected(fn()=>$a->managePatient($owner['id'],'admin-demote',$subject+['confirmed'=>true]),409,'bloqueia remoção abaixo de dois administradores');
 $a->join($outsider['id'],$a->patientCode($owner['id'],$patientId)['code']);
 $third=['patient'=>$patientId,'userId'=>$outsider['id']];
 $a->managePatient($relative['id'],'admin-invite',$third);
